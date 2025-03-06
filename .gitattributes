@@ -1,0 +1,14 @@
+*.gitignore filter=lfs diff=lfs merge=lfs -text
+/LICENSE filter=lfs diff=lfs merge=lfs -text
+*.md filter=lfs diff=lfs merge=lfs -text
+*.* !text !filter !merge !diff
+*Dockerfile* !text !filter !merge !diff
+*/corpora/* !text !filter !merge !diff
+*cntlist* !text !filter !merge !diff
+*lexnames* !text !filter !merge !diff
+*LICENSE* !text !filter !merge !diff
+*README* !text !filter !merge !diff
+*mvnw* !text !filter !merge !diff
+runtime/spark/reddit_flair_classifier/model.safetensors !text !filter !merge !diff
+runtime/spark/reddit_flair_classifier/model.safetensors filter=lfs diff=lfs merge=lfs -text
+model/reddit_flair_classifier/model.safetensors filter=lfs diff=lfs merge=lfs -text
