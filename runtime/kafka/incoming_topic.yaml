@@ -1,0 +1,10 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  namespace: reddit-realtime
+  name: reddit-stream
+  labels:
+    strimzi.io/cluster: reddit-posts
+spec:
+  partitions: 3
+  replicas: 1
