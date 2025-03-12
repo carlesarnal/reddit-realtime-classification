@@ -58,7 +58,7 @@ while True:
         subreddit = reddit.subreddit("AskEurope")
 
         for flair in flairs:
-            new_posts = subreddit.search(query=f"flair:{flair}", time_filter="day", limit=200)
+            new_posts = subreddit.search(query=f"flair:{flair}", time_filter="week", limit=200)
 
             for submission in new_posts:
                 if submission.id not in processed_ids:
