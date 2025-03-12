@@ -9,7 +9,7 @@ from nltk.corpus import stopwords, wordnet
 from nltk.stem import WordNetLemmatizer
 from nltk import word_tokenize
 
-file_content = open("stop.txt").read()
+file_content = open("../runtime/kafka/producer/stop.txt").read()
 STOPWORDS = word_tokenize(file_content)
 punct = list(string.punctuation)
 punct += '’'

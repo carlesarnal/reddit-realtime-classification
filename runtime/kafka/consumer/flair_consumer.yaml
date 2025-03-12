@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flair-consumer
+  namespace: reddit-realtime
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flair-consumer
+  template:
+    metadata:
+      labels:
+        app: flair-consumer
+    spec:
+      containers:
+        - name: flair-consumer
+          image: quay.io/my-quay-user/flair-consumer:latest
+          imagePullPolicy: Always
+          env:
+            - name: KAFKA_BROKER
+              value: "reddit-posts-kafka-bootstrap.reddit-realtime.svc:9093"
