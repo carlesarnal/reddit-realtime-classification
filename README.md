@@ -76,14 +76,14 @@ strimzi-cluster-operator-xxxxxxx-xxxxx     1/1     Running   0          30s
 
 #### Step 1: Create a Kafka Cluster
 ```
-kubectl apply -f kafka_cluster.yaml
+kubectl apply -f runtime/kafka/kafka_cluster.yaml
 ```
 
 #### Step 2: Deploy the Kafka topics
 
 ```
-kubectl apply -f incoming_topic.yaml
-kubectl apply -f outgoing_topic.yaml
+kubectl apply -f runtime/kafka/producer/incoming_topic.yaml
+kubectl apply -f runtime/kafka/consumer/outgoing_topic.yaml
 ```
 
 ### 1.4 Install Spark
@@ -108,20 +108,45 @@ spark-operator-xxxxxxx-xxxxx              1/1     Running   0          30s
 
 Once the pods are running, you can deploy the Spark application.
 
-### Step 3: Deploy the Spark Application
+### Step 3: Deploy the Kafka Producer
+
+To deploy the Kafka producer, you can use the following command:
+    
+```
+kubectl apply -f runtime/kafka/producer/reddit_posts_processor.yaml
+```
+
+This Kafka producer will read from the Reddit API and write the posts to the Kafka topic. It uses a Python script to read from the Reddit API and write to the Kafka topic. The Python script can be found [here](./runtime/kafka/reddit_posts_processor.py.
+
+This docker image is built using the [Dockerfile](runtime/kafka/producer/Dockerfile) in the same directory. The commands used to build the Docker image and push it to Docker Hub are as follows:
 
 ```
-kubectl apply -f spark_application.yaml
+docker build -t quay.io/carlesarnal/reddit-posts-processor:latest ./runtime/kafka/producer/
+docker push quay.io/carlesarnal/reddit-posts-processor:latest
 ```
 
-This Spark application will read from the Kafka topic, apply the model to the data and write the results to another Kafka topic. It uses a Spark Structured Streaming job to process the data in real-time. If you look at the [spark_application.yaml](./runtime/spark/spark_inference_application.yaml) file, you will see that it specifies the Docker image to use for the Spark application. This Docker image is built using the [Dockerfile](./runtime/spark/Dockerfile) in the same directory.
+You'll need to change the repository details in the commands above to match your own repository and you'll also need to change the Docker image in the [reddit_posts_processor.yaml](runtime/kafka/producer/reddit_posts_processor.yaml) file to the one you just built.
+
+### Step 4: Deploy the Spark Application
+
+```
+kubectl apply -f runtime/spark/reddit_flair_spark_inference.yaml
+```
+
+This Spark application will read from the Kafka topic, apply the model to the data and write the results to another Kafka topic. It uses a Spark Structured Streaming job to process the data in real-time. If you look at the [spark_application.yaml](./runtime/spark/reddit_flair_spark_inference.yaml) file, you will see that it specifies the Docker image to use for the Spark application. This Docker image is built using the [Dockerfile](./runtime/spark/Dockerfile) in the same directory.
 
 The commands used to build the Docker image and push it to Docker Hub are as follows:
 
 ```
-docker build -t quay.io/carlesarnal/spark-inference:latest ./spark_reddit_fetcher/
+docker build -t quay.io/carlesarnal/spark-inference:latest ./runtime/spark/
 docker push quay.io/carlesarnal/spark-inference:latest
 ```
 
-You'll need to change the repository details in the commands above to match your own repository and you'll also need to change the Docker image in the [spark_application.yaml](./runtime/spark/spark_inference_application.yaml) file to the one you just built.
+You'll need to change the repository details in the commands above to match your own repository and you'll also need to change the Docker image in the [spark_application.yaml](./runtime/spark/reddit_flair_spark_inference.yaml) file to the one you just built.
+
+### Step 5: Deploy the Kafka Consumer
+
+```
+kubectl apply -f runtime/kafka/reddit_flair_consumer.yaml
+```
 

@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-producer
+  namespace: reddit-realtime
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-producer
+  template:
+    metadata:
+      labels:
+        app: kafka-producer
+    spec:
+      containers:
+        - name: kafka-producer
+          image: quay.io/carlesarnal/reddit-posts-processor:latest
+          imagePullPolicy: Always
+          env:
+            - name: KAFKA_BROKER
+              value: "reddit-posts-kafka-bootstrap.reddit-realtime.svc:9093"

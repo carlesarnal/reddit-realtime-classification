@@ -4,7 +4,6 @@ import string
 import re
 import nltk
 
-nltk.download('averaged_perceptron_tagger')
 from nltk.corpus import stopwords, wordnet
 from nltk.stem import WordNetLemmatizer
 from nltk import word_tokenize
@@ -58,8 +57,6 @@ def lemmatize_text(sentence):
 # To clean text in the passed column of the data by combining the above functions
 
 def clean_text(df, col):
-    import ssl
-    ssl._create_default_https_context = ssl._create_unverified_context
 
     print('Cleaning text of',col,'...')
     # Converting to lower case
