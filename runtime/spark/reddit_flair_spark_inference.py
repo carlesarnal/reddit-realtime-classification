@@ -1,7 +1,22 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_json
 from pyspark.sql.types import StructType, StringType
-import joblib
+
+from pyspark.sql.functions import udf
+
+import pickle
+
+# Load Pre-Trained Model
+with open("vectorizer.pkl", "rb") as file:
+    tfidf = pickle.load(file)
+
+with open("LSA_topics.pkl", "rb") as file:
+    tsvd = pickle.load(file)
+
+with open("reddit_classifier.pkl", "rb") as file:
+    classifier = pickle.load(file)
+
+flairs = ['Work', 'Misc', 'Food', 'Personal', 'Meta', 'Sports', 'Travel', 'Politics', 'Culture', 'History', 'Education', 'Language', 'Foreign']
 
 # Initialize Spark Session
 spark = SparkSession.builder \
@@ -22,15 +37,10 @@ df = spark.readStream .format("kafka") .option("kafka.bootstrap.servers", kafka_
 # Parse JSON messages
 parsed_df = df.select(from_json(col("value").cast("string"), schema).alias("data")).select("data.*")
 
-# Load Pre-Trained Model
-model = joblib.load("/opt/spark/jobs/reddit_classifier.pkl")
-
-# Define UDF for model inference
-from pyspark.sql.functions import udf
-from pyspark.sql.types import StringType
-
 def predict_flair(content):
-    return model.predict([content])[0]
+    X = tfidf.transform([content])
+    X = tsvd.transform(X)
+    return flairs[classifier.predict(X)[0]]
 
 predict_udf = udf(predict_flair, StringType())
 

@@ -4,14 +4,20 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import io.smallrye.reactive.messaging.kafka.KafkaRecord;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.jboss.logging.Logger;
+import io.vertx.core.json.JsonObject;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
+@Path("/flairs")
 public class FlairConsumer {
 
     private static final Logger LOG = Logger.getLogger(FlairConsumer.class);
@@ -29,23 +35,27 @@ public class FlairConsumer {
             flairCount.merge(flair, 1, Integer::sum);
         }
 
+        record.ack();
+
         return Uni.createFrom().nullItem();
     }
 
-    private String extractFlair(String json) {
+
+    private String extractFlair(String message) {
         try {
-            return json.split("\"flair\":\"")[1].split("\"")[0];
-        }
-        catch (Exception e) {
-            LOG.error("Error parsing flair", e);
-            return null;
+            JsonObject json = new JsonObject(message);
+            return json.getString("predicted_flair", "Unknown"); // ✅ Safe extraction with a fallback
+        } catch (Exception e) {
+            System.err.println("❌ Error parsing JSON: " + e.getMessage());
+            return "Unknown";
         }
     }
 
+
     // REST endpoint for retrieving flair statistics
-    @jakarta.ws.rs.GET
-    @jakarta.ws.rs.Path("/flairs")
-    @jakarta.ws.rs.Produces(jakarta.ws.rs.core.MediaType.APPLICATION_JSON)
+    @GET
+    @Path("/statistics")
+    @Produces(MediaType.APPLICATION_JSON)
     public Response getFlairStatistics() {
         return Response.ok(flairCount).build();
     }
