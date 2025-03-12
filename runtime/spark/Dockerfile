@@ -9,6 +9,8 @@ COPY reddit_flair_spark_inference.py .
 
 # Copy pre-trained model
 COPY reddit_classifier.pkl .
+COPY LSA_topics.pkl .
+COPY vectorizer.pkl .
 
 # Switch to root user temporarily to install packages
 USER root
