@@ -6,6 +6,8 @@ from pyspark.sql.functions import udf
 
 import pickle
 
+##TODO add confidence score to the prediction in Kafka!!
+
 # Load Pre-Trained Model
 with open("vectorizer.pkl", "rb") as file:
     tfidf = pickle.load(file)
