@@ -61,6 +61,16 @@ def clean_text(df, col):
     import ssl
     ssl._create_default_https_context = ssl._create_unverified_context
 
+    def safe_str(x):
+        try:
+            return str(x).lower().replace('\n', ' ')
+        except Exception:
+            return ''
+
+    df[col] = df[col].apply(safe_str)
+
+    print(df[col])
+
     print('Cleaning text of',col,'...')
     # Converting to lower case
     df[col]= df[col].str.lower()

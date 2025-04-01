@@ -3,9 +3,21 @@ import pandas as pd
 import datetime as dt
 from tqdm import tqdm
 import tldextract
+import time
+import os
 
+# --- Config ---
+SUBREDDIT_NAME = "AskEurope"
+FLAIRS = {
+    'Work', 'Misc', 'Food', 'Personal', 'Meta', 'Sports', 'Travel',
+    'Politics', 'Culture', 'History', 'Education', 'Language', 'Foreign'
+}
+COMMENTS_LIMIT = 30
+OUTPUT_DIR = "reddit_daily_data"
+MASTER_CSV = os.path.join(OUTPUT_DIR, "reddit_eur_data.csv")
+DAILY_CSV = os.path.join(OUTPUT_DIR, f"reddit_{dt.date.today()}.csv")
 
-# Reddit API Credentials
+# --- Reddit API ---
 reddit = praw.Reddit(
     client_id="zxFFHFUXZ3xkhPrkTrDaFg",
     client_secret="jFowmw-Pda2y5EaI7E0X7VMxjDbPYQ",
@@ -15,58 +27,75 @@ reddit = praw.Reddit(
 def get_date(created):
     return dt.datetime.fromtimestamp(created)
 
-subreddit = reddit.subreddit('AskEurope')
+# --- Load existing data to avoid duplicates ---
+if not os.path.exists(OUTPUT_DIR):
+    os.makedirs(OUTPUT_DIR)
 
-flairs = ['Work', 'Misc', 'Food', 'Personal', 'Meta', 'Sports', 'Travel', 'Politics', 'Culture', 'History', 'Education', 'Language', 'Foreign']
+if os.path.exists(MASTER_CSV):
+    existing = pd.read_csv(MASTER_CSV)
+    existing_ids = set(existing["id"])
+else:
+    existing = pd.DataFrame()
+    existing_ids = set()
 
-topics_dict = {"id": [], "flair": [], "title": [], "body": [], "comments": [], "score": [], "author": [], "url": [],
-               "domain": [], "comms_num": [], "created": []}
+# --- Data container ---
+topics_dict = {
+    "id": [], "flair": [], "title": [], "body": [], "comments": [], "score": [],
+    "author": [], "url": [], "domain": [], "comms_num": [], "created": []
+}
 
-# Using tqdm progress bar to track iterations
-with tqdm(total=len(flairs) * 125) as pbar:
-    for flair in flairs:
-        get_subreddits = subreddit.search(query=f"flair:{flair}", time_filter='year', limit=150)
-        for submission in get_subreddits:
-            topics_dict["flair"].append(submission.link_flair_text)
-            topics_dict["title"].append(submission.title)
-            topics_dict["score"].append(submission.score)
-            topics_dict["id"].append(submission.id)
-            topics_dict["url"].append(submission.url)
-            topics_dict["comms_num"].append(submission.num_comments)
-            topics_dict["created"].append(submission.created)
-            topics_dict["body"].append(submission.selftext)
-            topics_dict["author"].append(submission.author)
+print("Collecting new posts...")
+for submission in tqdm(reddit.subreddit(SUBREDDIT_NAME).new(limit=None), desc="Fetching posts"):
+    if submission.link_flair_text not in FLAIRS:
+        continue
+    if submission.id in existing_ids:
+        continue
 
-            # Using top-level-domain extraction methods to find domain of URLs
-            tld = tldextract.extract(submission.url)
-            d = tld.domain + "." + tld.suffix
+    try:
+        submission.comments.replace_more(limit=COMMENTS_LIMIT)
+        comments = ' '.join([c.body for c in submission.comments])
+    except:
+        comments = ''
 
-            # Conditions for some exceptions
-            if submission.is_self == True:
-                d = "self-post"
-            if d == "youtu.be":
-                d = "youtube.com"
-            if d == "redd.it":
-                d = "reddit.com"
+    tld = tldextract.extract(submission.url)
+    domain = f"{tld.domain}.{tld.suffix}" if not submission.is_self else "self-post"
+    domain = {
+        "redd.it": "reddit.com",
+        "youtu.be": "youtube.com"
+    }.get(domain, domain)
 
-            topics_dict["domain"].append(d)
+    topics_dict["flair"].append(submission.link_flair_text)
+    topics_dict["title"].append(submission.title)
+    topics_dict["score"].append(submission.score)
+    topics_dict["id"].append(submission.id)
+    topics_dict["url"].append(submission.url)
+    topics_dict["comms_num"].append(submission.num_comments)
+    topics_dict["created"].append(submission.created_utc)
+    topics_dict["body"].append(submission.selftext)
+    topics_dict["author"].append(str(submission.author))
+    topics_dict["domain"].append(domain)
+    topics_dict["comments"].append(comments)
 
-            submission.comments.replace_more(limit=10)
-            comment = ' '
-            for top_level_comment in submission.comments:
-                comment += ' ' + top_level_comment.body
-            topics_dict["comments"].append(comment)
-            pbar.update(1)
+    time.sleep(0.1)  # respect rate limit
 
-data = pd.DataFrame(topics_dict)
+# --- Convert to DataFrame ---
+new_data = pd.DataFrame(topics_dict)
+if new_data.empty:
+    print("🟡 No new posts found today.")
+    exit(0)
 
-# Converting timestamp to datetime format
-_timestamp = data["created"].apply(get_date)
-data = data.assign(timestamp = _timestamp)
-del data['created']
+new_data["timestamp"] = new_data["created"].apply(get_date)
+del new_data["created"]
 
-# Shuffling the rows
-data = data.sample(frac=1).reset_index(drop=True)
+# --- Save daily and append to master ---
+new_data.to_csv(DAILY_CSV, index=False)
+print(f"📁 Saved daily CSV: {DAILY_CSV}")
 
-# Saving the data in csv file
-data.to_csv('reddit_eur_data.csv', index=False)
+if not existing.empty:
+    combined = pd.concat([existing, new_data], ignore_index=True)
+    combined.drop_duplicates(subset="id", inplace=True)
+else:
+    combined = new_data
+
+combined.to_csv(MASTER_CSV, index=False)
+print(f"📦 Appended {len(new_data)} new posts to {MASTER_CSV}")

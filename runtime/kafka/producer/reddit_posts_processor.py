@@ -31,19 +31,19 @@ try:
         linger_ms=10,  # Reduce batch wait time
         max_block_ms=60000  # Ensure producer does not hang indefinitely
     )
-    print("✅ Kafka producer connected successfully!")
+    print(" Kafka producer connected successfully!")
 except Exception as e:
-    print(f"❌ Kafka connection failed: {e}")
+    print(f" Kafka connection failed: {e}")
 
 # Function to convert timestamp to human-readable format
 def get_date(created):
     return dt.datetime.fromtimestamp(created).isoformat()
 
 def on_send_success(record_metadata):
-    print(f"✔ Message sent successfully to {record_metadata.topic} partition {record_metadata.partition} at offset {record_metadata.offset}")
+    print(f" Message sent successfully to {record_metadata.topic} partition {record_metadata.partition} at offset {record_metadata.offset}")
 
 def on_send_error(excp):
-    print(f"❌ Message send failed: {excp}")
+    print(f" Message send failed: {excp}")
 
 # List of categories to track
 flairs = ['Work', 'Misc', 'Food', 'Personal', 'Meta', 'Sports', 'Travel', 'Politics', 'Culture', 'History', 'Education', 'Language', 'Foreign']
