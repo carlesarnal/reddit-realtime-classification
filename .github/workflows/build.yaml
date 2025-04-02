@@ -20,18 +20,16 @@ jobs:
         with:
           lfs: true  # Pull model weights and label encoder via Git LFS
 
-      - name: 📦 Install Git LFS and pull model
-        run: |
-          sudo apt-get update && sudo apt-get install -y git-lfs
-          git lfs install
-          git lfs pull
-
       - name: 🔐 Log in to Quay
         uses: docker/login-action@v2
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_SECRET }}
+
+      - name: 🔎 Sanity check show Dockerfile head
+        run: |
+          head -n 5 ./runtime/spark/Dockerfile
 
       - name: 🛠️ Build and Push Kafka Producer
         run: |
