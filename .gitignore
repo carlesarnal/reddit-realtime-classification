@@ -1,3 +1,27 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:affbdc2a83b7d656b98cb2f77f6c33e8ce8221919ea1a50d803b19647588f07d
-size 290
+# Compiled class file
+*.class
+
+# Log file
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files #
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+replay_pid*
+
+model/results/
+model/reddit_flair_classifier/

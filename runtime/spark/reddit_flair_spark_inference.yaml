@@ -1,3 +1,23 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:b96838fe7451b18b04aebd5cd324cd17cb5f76d71037c7437e57afe6738b04c4
-size 539
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: SparkApplication
+metadata:
+  name: spark-reddit-inference
+  namespace: default
+spec:
+  type: Python
+  pythonVersion: "3"
+  mode: cluster
+  image: quay.io/carlesarnal/spark-inference:27
+  imagePullPolicy: IfNotPresent
+  mainApplicationFile: local:///opt/spark/jobs/reddit_flair_spark_inference.py
+  sparkVersion: 3.5.3
+  driver:
+    cores: 1
+    memory: 1g
+    serviceAccount: spark-operator-spark
+  executor:
+    cores: 1
+    instances: 1
+    memory: 1536m
+    labels:
+      version: "3.5.0"
