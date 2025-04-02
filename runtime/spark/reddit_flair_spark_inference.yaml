@@ -7,7 +7,7 @@ spec:
   type: Python
   pythonVersion: "3"
   mode: cluster
-  image: quay.io/carlesarnal/spark-inference:13
+  image: quay.io/carlesarnal/spark-inference:21
   imagePullPolicy: IfNotPresent
   mainApplicationFile: local:///opt/spark/jobs/reddit_flair_spark_inference.py
   sparkVersion: 3.5.3

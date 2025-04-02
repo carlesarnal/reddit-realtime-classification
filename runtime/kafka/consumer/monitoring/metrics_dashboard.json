@@ -1,0 +1,40 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Reddit Flair Classification",
+    "timezone": "browser",
+    "panels": [
+      {
+        "type": "stat",
+        "title": "Total Parsing Errors",
+        "targets": [
+          {
+            "expr": "flair_message_errors_total",
+            "format": "time_series"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 0, "w": 6, "h": 5 }
+      },
+      {
+        "type": "barchart",
+        "title": "Flair Distribution (Real-Time)",
+        "targets": [
+          {
+            "expr": "flair_messages_total",
+            "legendFormat": "{{flair}}",
+            "format": "time_series"
+          }
+        ],
+        "gridPos": { "x": 6, "y": 0, "w": 18, "h": 10 },
+        "options": {
+          "orientation": "horizontal",
+          "showValues": "auto",
+          "stacking": "normal"
+        }
+      }
+    ],
+    "schemaVersion": 36,
+    "version": 1
+  },
+  "overwrite": true
+}

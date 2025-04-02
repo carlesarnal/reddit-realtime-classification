@@ -108,7 +108,24 @@ spark-operator-xxxxxxx-xxxxx              1/1     Running   0          30s
 
 Once the pods are running, you can deploy the Spark application.
 
-### Step 3: Deploy the Kafka Producer
+### Step 3: Deploy the Spark Application
+
+```
+kubectl apply -f runtime/spark/reddit_flair_spark_inference.yaml
+```
+
+This Spark application will read from the Kafka topic, apply the model to the data and write the results to another Kafka topic. It uses a Spark Structured Streaming job to process the data in real-time. If you look at the [spark_application.yaml](./runtime/spark/reddit_flair_spark_inference.yaml) file, you will see that it specifies the Docker image to use for the Spark application. This Docker image is built using the [Dockerfile](./runtime/spark/Dockerfile) in the same directory.
+
+The commands used to build the Docker image and push it to Docker Hub are as follows:
+
+```
+docker build -t quay.io/carlesarnal/spark-inference:latest ./runtime/spark/
+docker push quay.io/carlesarnal/spark-inference:latest
+```
+
+You'll need to change the repository details in the commands above to match your own repository and you'll also need to change the Docker image in the [spark_application.yaml](./runtime/spark/reddit_flair_spark_inference.yaml) file to the one you just built.
+
+### Step 4: Deploy the Kafka Producer
 
 To deploy the Kafka producer, you can use the following command:
     
@@ -127,26 +144,46 @@ docker push quay.io/carlesarnal/reddit-posts-processor:latest
 
 You'll need to change the repository details in the commands above to match your own repository and you'll also need to change the Docker image in the [reddit_posts_processor.yaml](runtime/kafka/producer/reddit_posts_processor.yaml) file to the one you just built.
 
-### Step 4: Deploy the Spark Application
-
-```
-kubectl apply -f runtime/spark/reddit_flair_spark_inference.yaml
-```
-
-This Spark application will read from the Kafka topic, apply the model to the data and write the results to another Kafka topic. It uses a Spark Structured Streaming job to process the data in real-time. If you look at the [spark_application.yaml](./runtime/spark/reddit_flair_spark_inference.yaml) file, you will see that it specifies the Docker image to use for the Spark application. This Docker image is built using the [Dockerfile](./runtime/spark/Dockerfile) in the same directory.
-
-The commands used to build the Docker image and push it to Docker Hub are as follows:
-
-```
-docker build -t quay.io/carlesarnal/spark-inference:latest ./runtime/spark/
-docker push quay.io/carlesarnal/spark-inference:latest
-```
-
-You'll need to change the repository details in the commands above to match your own repository and you'll also need to change the Docker image in the [spark_application.yaml](./runtime/spark/reddit_flair_spark_inference.yaml) file to the one you just built.
-
 ### Step 5: Deploy the Kafka Consumer
 
 ```
 kubectl apply -f runtime/kafka/consumer/flair_consumer.yaml
 ```
+
+With this simple command, the Quarkus application will start consuming the inference messages.
+
+### Step 6: Metrics and monitoring
+
+To deploy the Prometheus and Grafana monitoring stack, you can use the following command:
+
+```
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+helm install prometheus prometheus-community/kube-prometheus-stack
+```
+
+This will install:
+
+- Prometheus
+- Grafana
+- Node exporters
+- Alertmanager
+
+To create the Service Monitor execute:
+
+```
+kubectl apply -f ./runtime/kafka/consumer/monitoring/service_monitor.yaml
+```
+
+Now it's time to create the Graphana dashboard, there's a pre-built one, first of all, execute the following to be able to access Graphana from your local machine:
+
+```
+kubectl port-forward svc/prometheus-grafana 3000:80
+```
+
+The default username and password are: `admin - prom-operator` There's a pre-build dashboard in [metrics_dashboard.json](runtime/kafka/consumer/monitoring/metrics_dashboard.json). 
+
+
+
 
