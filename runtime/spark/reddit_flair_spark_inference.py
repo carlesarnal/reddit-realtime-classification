@@ -2,18 +2,33 @@
 
 import os
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, from_json, udf
+from pyspark.sql.functions import col, from_json, udf, struct
 from pyspark.sql.types import StructType, StringType
+
+# 💥 Disable cache-based loading to avoid tokenizer errors
+os.environ["TRANSFORMERS_CACHE"] = "/tmp/hf-cache"
+os.environ["HF_DATASETS_CACHE"] = "/tmp/hf-cache"
+os.environ["HF_HOME"] = "/tmp/hf-home"
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["HF_HUB_OFFLINE"] = "1"
+os.makedirs("/tmp/hf-cache", exist_ok=True)
+os.makedirs("/tmp/hf-home", exist_ok=True)
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import torch
 import joblib
 import json
 
+print(" transformers version:", __import__("transformers").__version__)
+
 # Load model and tokenizer from local path (pre-downloaded in Docker)
 model_dir = "/opt/spark/models/reddit_flairs"
 model = AutoModelForSequenceClassification.from_pretrained(model_dir)
-tokenizer = AutoTokenizer.from_pretrained(model_dir)
+tokenizer = AutoTokenizer.from_pretrained(model_dir, local_files_only=True, use_fast=False)
+
+# 🔍 Tokenizer sanity check
+tokenizer("test")
+
 label_encoder = joblib.load(os.path.join(model_dir, "reddit_flair_label_encoder.joblib"))
 
 # Ensure model runs on CPU (Spark workers will default to this)
@@ -76,7 +91,9 @@ df = spark.readStream \
 df_parsed = df.select(from_json(col("value").cast("string"), schema).alias("data")).select("data.*")
 
 # Apply transformer model UDF with confidence
-predicted_df = df_parsed.withColumn("value", predict_udf(col("data")))
+predicted_df = df_parsed.withColumn("value", predict_udf(struct("id", "title", "content")))
+
+df_parsed.printSchema()
 
 # Write predictions to Kafka
 query = predicted_df.selectExpr("value") \

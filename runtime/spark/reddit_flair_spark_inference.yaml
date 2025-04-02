@@ -7,17 +7,17 @@ spec:
   type: Python
   pythonVersion: "3"
   mode: cluster
-  image: quay.io/carlesarnal/spark-inference:21
+  image: quay.io/carlesarnal/spark-inference:27
   imagePullPolicy: IfNotPresent
   mainApplicationFile: local:///opt/spark/jobs/reddit_flair_spark_inference.py
   sparkVersion: 3.5.3
   driver:
     cores: 1
-    memory: 512m
+    memory: 1g
     serviceAccount: spark-operator-spark
   executor:
     cores: 1
     instances: 1
-    memory: "1g"
+    memory: 1536m
     labels:
       version: "3.5.0"

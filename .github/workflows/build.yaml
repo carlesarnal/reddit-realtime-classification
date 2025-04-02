@@ -1,10 +1,11 @@
-name: Build and Push Kafka Producer Image
+name: Build and Push Images
 
 on:
   push:
     branches: [main]
     paths:
       - 'runtime/kafka/producer/**'
+      - 'runtime/spark/**'
       - '.github/workflows/**'
 
 jobs:
@@ -14,20 +15,36 @@ jobs:
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v3
+        with:
+          lfs: true  # Required for Git LFS files
+
+      - name: 📦 Install Git LFS and pull model
+        run: |
+          sudo apt-get update && sudo apt-get install -y git-lfs
+          git lfs install
+          git lfs pull
 
       - name: 🔐 Log in to Quay
         uses: docker/login-action@v2
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
+          password: ${{ secrets.QUAY_SECRET }}
 
-      - name: 🏗️ Build and Push Docker Images (latest + commit SHA)
+      - name: 🛠️ Build and Push Kafka Producer
         run: |
           COMMIT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
           IMAGE=quay.io/carlesarnal/reddit-posts-processor
-          
-          docker build -t $IMAGE:latest -t $IMAGE:sha-$COMMIT_SHA ./runtime/kafka/producer
 
+          docker build -t $IMAGE:latest -t $IMAGE:sha-$COMMIT_SHA ./runtime/kafka/producer
+          docker push $IMAGE:latest
+          docker push $IMAGE:sha-$COMMIT_SHA
+
+      - name: 🧠 Build and Push Spark Inference (LFS model)
+        run: |
+          COMMIT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
+          IMAGE=quay.io/carlesarnal/spark-inference
+
+          docker build -t $IMAGE:latest -t $IMAGE:sha-$COMMIT_SHA ./runtime/spark
           docker push $IMAGE:latest
           docker push $IMAGE:sha-$COMMIT_SHA
