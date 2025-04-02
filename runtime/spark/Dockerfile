@@ -19,6 +19,14 @@ RUN python3 -m pip install --no-cache-dir --upgrade pip
 # Install required Python libraries globally (force-reinstall to avoid corruption)
 RUN pip install --no-cache-dir --force-reinstall scikit-learn==1.3.2 joblib numpy==1.24.4 pandas==2.0.3 transformers==4.37.2 torch==2.4.1 evaluate==0.4.3 accelerate==0.34.2
 
+RUN python3 -c "\
+import torch, joblib; \
+from transformers import AutoTokenizer, AutoModelForSequenceClassification; \
+model_dir = '/opt/spark/models/reddit_flairs'; \
+AutoTokenizer.from_pretrained(model_dir, local_files_only=True, use_fast=False); \
+AutoModelForSequenceClassification.from_pretrained(model_dir, local_files_only=True); \
+joblib.load(f'{model_dir}/reddit_flair_label_encoder.joblib'); \
+print('✅ Model, tokenizer, and label encoder loaded successfully.')"
 
 # Create JARs directory for Spark dependencies
 RUN mkdir -p /opt/spark/jars
