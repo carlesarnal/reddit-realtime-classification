@@ -8,9 +8,7 @@ WORKDIR /opt/spark/jobs
 COPY reddit_flair_spark_inference.py .
 
 # Copy pre-trained model
-COPY reddit_classifier.pkl .
-COPY LSA_topics.pkl .
-COPY vectorizer.pkl .
+COPY reddit_flair_classifier ./reddit_flair_classifier
 
 # Switch to root user temporarily to install packages
 USER root
@@ -19,7 +17,7 @@ USER root
 RUN python3 -m pip install --no-cache-dir --upgrade pip
 
 # Install required Python libraries globally (force-reinstall to avoid corruption)
-RUN pip install --no-cache-dir --force-reinstall scikit-learn==1.3.2 joblib numpy==1.24.4 pandas==2.0.3
+RUN pip install --no-cache-dir --force-reinstall scikit-learn==1.3.2 joblib numpy==1.24.4 pandas==2.0.3 transformers==4.37.2
 
 # Create JARs directory for Spark dependencies
 RUN mkdir -p /opt/spark/jars

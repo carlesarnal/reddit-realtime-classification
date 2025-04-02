@@ -1,28 +1,41 @@
+# reddit_transformer_spark.py
+
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, from_json
+from pyspark.sql.functions import col, from_json, udf
 from pyspark.sql.types import StructType, StringType
 
-from pyspark.sql.functions import udf
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+import torch
+import joblib
 
-import pickle
+# Load Hugging Face model, tokenizer and label encoder
+model_dir = "./reddit_flair_classifier"
+model = AutoModelForSequenceClassification.from_pretrained(model_dir)
+tokenizer = AutoTokenizer.from_pretrained(model_dir)
+label_encoder = joblib.load("./reddit_flair_classifier/reddit_flair_label_encoder.joblib")
 
-##TODO add confidence score to the prediction in Kafka!!
+# Ensure model runs on CPU (Spark workers will default to this)
+device = torch.device("cpu")
+model.to(device)
+model.eval()
 
-# Load Pre-Trained Model
-with open("vectorizer.pkl", "rb") as file:
-    tfidf = pickle.load(file)
+# Define UDF for flair prediction
+def predict_flair_transformer(text):
+    if not text or len(text.strip()) == 0:
+        return "Unknown"
+    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=512)
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+    with torch.no_grad():
+        outputs = model(**inputs)
+    probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
+    pred_class = torch.argmax(probs, dim=1).item()
+    return label_encoder.classes_[pred_class]
 
-with open("LSA_topics.pkl", "rb") as file:
-    tsvd = pickle.load(file)
-
-with open("reddit_classifier.pkl", "rb") as file:
-    classifier = pickle.load(file)
-
-flairs = ['Work', 'Misc', 'Food', 'Personal', 'Meta', 'Sports', 'Travel', 'Politics', 'Culture', 'History', 'Education', 'Language', 'Foreign']
+predict_udf = udf(predict_flair_transformer, StringType())
 
 # Initialize Spark Session
 spark = SparkSession.builder \
-    .appName("RedditKafkaSparkInference") \
+    .appName("RedditKafkaTransformerInference") \
     .config("spark.sql.shuffle.partitions", "2") \
     .config("spark.executor.instances", "2") \
     .getOrCreate()
@@ -31,25 +44,34 @@ spark = SparkSession.builder \
 kafka_bootstrap_servers = "reddit-posts-kafka-bootstrap.reddit-realtime.svc:9093"
 
 # Define Kafka topic schema
-schema = StructType().add("id", StringType()).add("title", StringType()).add("content", StringType())
+schema = StructType() \
+    .add("id", StringType()) \
+    .add("title", StringType()) \
+    .add("content", StringType())
 
-# Read from Kafka with checkpointing to avoid duplicate processing
-df = spark.readStream .format("kafka") .option("kafka.bootstrap.servers", kafka_bootstrap_servers) .option("subscribe", "reddit-stream") .option("startingOffsets", "latest").option("failOnDataLoss", "false").load()
+# Read from Kafka
+df = spark.readStream \
+    .format("kafka") \
+    .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
+    .option("subscribe", "reddit-stream") \
+    .option("startingOffsets", "latest") \
+    .option("failOnDataLoss", "false") \
+    .load()
 
 # Parse JSON messages
-parsed_df = df.select(from_json(col("value").cast("string"), schema).alias("data")).select("data.*")
+df_parsed = df.select(from_json(col("value").cast("string"), schema).alias("data")).select("data.*")
 
-def predict_flair(content):
-    X = tfidf.transform([content])
-    X = tsvd.transform(X)
-    return flairs[classifier.predict(X)[0]]
+# Apply transformer model UDF
+df_with_prediction = df_parsed.withColumn("predicted_flair", predict_udf(col("content")))
 
-predict_udf = udf(predict_flair, StringType())
-
-# Apply prediction model to data
-predicted_df = parsed_df.withColumn("predicted_flair", predict_udf(col("content")))
-
-# Write processed results to Kafka (Avoid duplicates with checkpointing)
-query = predicted_df.selectExpr("to_json(struct(*)) AS value").writeStream .format("kafka") .option("kafka.bootstrap.servers", kafka_bootstrap_servers) .option("topic", "kafka-predictions").option("checkpointLocation", "/tmp/spark-checkpoints").trigger(processingTime="1 minute") .start()
+# Write predictions to Kafka
+query = df_with_prediction.selectExpr("to_json(struct(*)) AS value") \
+    .writeStream \
+    .format("kafka") \
+    .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
+    .option("topic", "kafka-predictions") \
+    .option("checkpointLocation", "/tmp/spark-checkpoints") \
+    .trigger(processingTime="1 minute") \
+    .start()
 
 query.awaitTermination()

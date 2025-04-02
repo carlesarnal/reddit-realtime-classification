@@ -147,6 +147,6 @@ You'll need to change the repository details in the commands above to match your
 ### Step 5: Deploy the Kafka Consumer
 
 ```
-kubectl apply -f runtime/kafka/reddit_flair_consumer.yaml
+kubectl apply -f runtime/kafka/consumer/flair_consumer.yaml
 ```
 
