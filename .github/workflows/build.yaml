@@ -51,7 +51,8 @@ jobs:
           COMMIT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
           IMAGE=quay.io/carlesarnal/spark-inference
 
-          docker build -t $IMAGE:latest -t $IMAGE:sha-$COMMIT_SHA ./runtime/kafka/consumer/flair-consumer/src/main/docker
+                   docker build \
+            -f runtime/kafka/consumer/flair-consumer/src/main/docker/Dockerfile.jvm -t $IMAGE:latest -t $IMAGE:sha-$COMMIT_SHA runtime/kafka/consumer/flair-consumer
           docker push $IMAGE:latest
           docker push $IMAGE:sha-$COMMIT_SHA
 
