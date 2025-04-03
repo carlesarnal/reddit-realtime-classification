@@ -46,6 +46,15 @@ jobs:
           docker push $IMAGE:latest
           docker push $IMAGE:sha-$COMMIT_SHA
 
+      - name: 🧠 Build and Push Predictions consumer (LFS model)
+        run: |
+          COMMIT_SHA=$(echo $GITHUB_SHA | cut -c1-7)
+          IMAGE=quay.io/carlesarnal/spark-inference
+
+          docker build -t $IMAGE:latest -t $IMAGE:sha-$COMMIT_SHA ./runtime/kafka/consumer/flair-consumer/src/main/docker/Dockerfile.jvm
+          docker push $IMAGE:latest
+          docker push $IMAGE:sha-$COMMIT_SHA
+
       - name: 🧠 Build and Push Spark Inference (LFS model)
         run: |
           COMMIT_SHA=$(echo $GITHUB_SHA | cut -c1-7)

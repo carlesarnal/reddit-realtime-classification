@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: kafka-producer
-          image: quay.io/carlesarnal/reddit-posts-processor:latest
+          image: quay.io/carlesarnal/reddit-posts-processor:sha-5cf65a9
           imagePullPolicy: Always
           env:
             - name: KAFKA_BROKER

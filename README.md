@@ -93,6 +93,7 @@ kubectl apply -f runtime/kafka/consumer/outgoing_topic.yaml
 ```
 helm repo add spark-operator https://kubeflow.github.io/spark-operator
 helm repo update
+oc adm policy add-scc-to-user anyuid -n spark-operator -z spark-operator
 helm install spark-operator spark-operator/spark-operator --namespace spark-operator --create-namespace --wait
 ```
 
