@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: predictions-consumer
-          image: quay.io/carlesarnal/predictions-publisher:sha-b6ceb5f
+          image: quay.io/carlesarnal/predictions-publisher:sha-02b2fe9
           ports:
             - containerPort: 8080
 ---

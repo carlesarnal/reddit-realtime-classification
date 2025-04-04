@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Metrics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <h1>Quarkus Metrics</h1>
+    <canvas id="cpuChart" width="400" height="200"></canvas>
+    <script>
+      async function loadMetrics() {
+        const res = await fetch('/q/metrics');
+        const text = await res.text();
+        const cpuMatch = text.match(/process_cpu_usage\s+(\d+\.?\d*)/);
+        return cpuMatch ? parseFloat(cpuMatch[1]) * 100 : 0;
+      }
+
+      const ctx = document.getElementById('cpuChart').getContext('2d');
+      const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'CPU Usage (%)',
+            data: [],
+            borderWidth: 1
+          }]
+        }
+      });
+
+      setInterval(async () => {
+        const cpu = await loadMetrics();
+        chart.data.labels.push(new Date().toLocaleTimeString());
+        chart.data.datasets[0].data.push(cpu);
+        if (chart.data.labels.length > 20) {
+          chart.data.labels.shift();
+          chart.data.datasets[0].data.shift();
+        }
+        chart.update();
+      }, 5000);
+    </script>
+  </body>
+</html>

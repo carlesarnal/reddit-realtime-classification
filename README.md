@@ -155,35 +155,7 @@ With this simple command, the Quarkus application will start consuming the infer
 
 ### Step 6: Metrics and monitoring
 
-To deploy the Prometheus and Grafana monitoring stack, you can use the following command:
-
-```
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
-
-helm install prometheus prometheus-community/kube-prometheus-stack
-```
-
-This will install:
-
-- Prometheus
-- Grafana
-- Node exporters
-- Alertmanager
-
-To create the Service Monitor execute:
-
-```
-kubectl apply -f ./runtime/kafka/consumer/monitoring/service_monitor.yaml
-```
-
-Now it's time to create the Graphana dashboard, there's a pre-built one, first of all, execute the following to be able to access Graphana from your local machine:
-
-```
-kubectl port-forward svc/prometheus-grafana 3000:80
-```
-
-The default username and password are: `admin - prom-operator` There's a pre-build dashboard in [metrics_dashboard.json](runtime/kafka/consumer/monitoring/metrics_dashboard.json). 
+The Quarkus app exposes metrics in the metrics.html page.
 
 
 
