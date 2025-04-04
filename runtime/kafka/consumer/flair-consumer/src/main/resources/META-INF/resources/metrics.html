@@ -11,36 +11,34 @@
 <body>
   <h1>Advanced Metrics Dashboard</h1>
 
-  <!-- CPU Usage -->
   <h2>CPU Usage</h2>
   <canvas id="cpuChart"></canvas>
 
-  <!-- System Load -->
   <h2>System Load (1 min avg)</h2>
   <canvas id="loadChart"></canvas>
 
-  <!-- Flair Count -->
   <h2>Flair Distribution</h2>
   <canvas id="flairCountChart"></canvas>
 
-  <!-- Flair Confidence -->
   <h2>Flair Confidence</h2>
   <canvas id="flairConfidenceChart"></canvas>
 
-  <!-- Kafka Consumer Stats -->
   <h2>Kafka Consumer Stats Over Time</h2>
   <canvas id="kafkaTrendsChart"></canvas>
 
-  <!-- JVM Heap Usage -->
   <h2>Heap Memory Usage</h2>
   <canvas id="heapChart"></canvas>
 
-  <!-- Thread States -->
   <h2>JVM Thread States</h2>
   <canvas id="threadChart"></canvas>
 
+  <h2>Prediction Agreement Rate</h2>
+  <canvas id="agreementChart"></canvas>
+
+  <h2>Confidence Gap Distribution</h2>
+  <canvas id="confidenceGapChart"></canvas>
+
   <script>
-    // === FETCH METRICS ===
     async function fetchMetrics() {
       const res = await fetch('/q/metrics');
       return await res.text();
@@ -51,19 +49,16 @@
       return match ? parseFloat(match[1]) : 0;
     }
 
-    // === CPU ===
     const cpuChart = new Chart(document.getElementById('cpuChart').getContext('2d'), {
       type: 'line', data: { labels: [], datasets: [{ label: 'CPU (%)', data: [], borderColor: 'blue' }] },
       options: { scales: { y: { beginAtZero: true, max: 100 } } }
     });
 
-    // === Load ===
     const loadChart = new Chart(document.getElementById('loadChart').getContext('2d'), {
       type: 'line', data: { labels: [], datasets: [{ label: 'Load Avg (1m)', data: [], borderColor: 'purple' }] },
       options: { scales: { y: { beginAtZero: true } } }
     });
 
-    // === Kafka Consumer Trends ===
     const kafkaChart = new Chart(document.getElementById('kafkaTrendsChart').getContext('2d'), {
       type: 'line',
       data: {
@@ -77,7 +72,6 @@
       options: { responsive: true, scales: { y: { beginAtZero: true } } }
     });
 
-    // === Heap Memory ===
     const heapChart = new Chart(document.getElementById('heapChart').getContext('2d'), {
       type: 'line',
       data: {
@@ -90,7 +84,6 @@
       options: { scales: { y: { beginAtZero: true } } }
     });
 
-    // === Thread States ===
     const threadChart = new Chart(document.getElementById('threadChart').getContext('2d'), {
       type: 'bar',
       data: {
@@ -104,6 +97,21 @@
       options: { indexAxis: 'y', scales: { x: { beginAtZero: true } } }
     });
 
+    const agreementChart = new Chart(document.getElementById('agreementChart').getContext('2d'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Agrees', 'Disagrees'],
+        datasets: [{ data: [0, 0], backgroundColor: ['green', 'red'] }]
+      },
+      options: { responsive: true }
+    });
+
+    const confidenceGapChart = new Chart(document.getElementById('confidenceGapChart').getContext('2d'), {
+      type: 'bar',
+      data: { labels: [], datasets: [{ label: 'Avg Gap', data: [], backgroundColor: 'gray' }] },
+      options: { scales: { y: { beginAtZero: true } } }
+    });
+
     async function updateCharts() {
       const text = await fetchMetrics();
       const now = new Date().toLocaleTimeString();
@@ -113,7 +121,6 @@
       const consumed = await parseMetric(text, /kafka_consumer_fetch_manager_records_consumed_total\{.*\}\s+(\d+\.?\d*)/);
       const rate = await parseMetric(text, /kafka_consumer_fetch_manager_records_consumed_rate\{.*\}\s+(\d+\.?\d*)/);
       const latency = await parseMetric(text, /kafka_consumer_fetch_manager_fetch_latency_avg\{.*\}\s+(\d+\.?\d*)/);
-
       const heapUsed = await parseMetric(text, /jvm_memory_used_bytes\{.*PS Old Gen.*\}\s+(\d+\.?\d*)/);
       const heapMax = await parseMetric(text, /jvm_memory_max_bytes\{.*PS Old Gen.*\}\s+(\d+\.?\d*)/);
 
@@ -121,6 +128,9 @@
       const blocked = await parseMetric(text, /jvm_threads_states_threads\{state="blocked".*\}\s+(\d+\.?\d*)/);
       const waiting = await parseMetric(text, /jvm_threads_states_threads\{state="waiting".*\}\s+(\d+\.?\d*)/);
       const timed = await parseMetric(text, /jvm_threads_states_threads\{state="timed-waiting".*\}\s+(\d+\.?\d*)/);
+
+      const agree = await parseMetric(text, /flair_comparisons_total\{agrees="true"\}\s+(\d+\.?\d*)/);
+      const disagree = await parseMetric(text, /flair_comparisons_total\{agrees="false"\}\s+(\d+\.?\d*)/);
 
       cpuChart.data.labels.push(now);
       loadChart.data.labels.push(now);
@@ -136,20 +146,18 @@
       heapChart.data.datasets[1].data.push(heapMax / 1024 / 1024);
 
       threadChart.data.datasets[0].data = [runnable, blocked, waiting, timed];
+      agreementChart.data.datasets[0].data = [agree, disagree];
 
-      const charts = [cpuChart, loadChart, kafkaChart, heapChart, threadChart];
-      charts.forEach(chart => {
-        if (chart.data.labels.length > 30) {
-          chart.data.labels.shift();
-          chart.data.datasets.forEach(ds => ds.data.shift());
-        }
-        chart.update();
-      });
+      cpuChart.update();
+      loadChart.update();
+      kafkaChart.update();
+      heapChart.update();
+      threadChart.update();
+      agreementChart.update();
     }
 
     setInterval(updateCharts, 5000);
 
-    // === Flair Stats ===
     async function fetchFlairStats() {
       const res = await fetch('/flairs/statistics');
       return await res.json();
@@ -175,8 +183,21 @@
       flairConfidenceChart.data.labels = labels;
       flairCountChart.data.datasets[0].data = counts;
       flairConfidenceChart.data.datasets[0].data = confidences;
+
+      confidenceGapChart.data.labels = labels;
+      const gapPattern = /flair_confidence_gap\{flair="(.*?)"\}\s+(\d+\.?\d*)/g;
+      const metrics = await fetchMetrics();
+      const gaps = [];
+      for (const label of labels) {
+        const regex = new RegExp(`flair_confidence_gap\\{flair=\\"${label}\\".*\}\\s+(\\d+\\.?\\d*)`);
+        const val = await parseMetric(metrics, regex);
+        gaps.push(val);
+      }
+      confidenceGapChart.data.datasets[0].data = gaps;
+
       flairCountChart.update();
       flairConfidenceChart.update();
+      confidenceGapChart.update();
     }
 
     setInterval(updateFlairCharts, 15000);
