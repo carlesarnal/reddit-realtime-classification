@@ -31,11 +31,11 @@ transformer_model.to("cpu")
 transformer_model.eval()
 
 # Load scikit-learn pipeline
-with open("/opt/spark/models/reddit_flairs/vectorizer.pkl", "rb") as f:
+with open("vectorizer.pkl", "rb") as f:
     tfidf = pickle.load(f)
-with open("/opt/spark/models/reddit_flairs/LSA_topics.pkl", "rb") as f:
+with open("LSA_topics.pkl", "rb") as f:
     tsvd = pickle.load(f)
-with open("/opt/spark/models/reddit_flairs/reddit_classifier.pkl", "rb") as f:
+with open("reddit_classifier.pkl", "rb") as f:
     classifier = pickle.load(f)
 
 flairs = label_encoder.classes_.tolist()
