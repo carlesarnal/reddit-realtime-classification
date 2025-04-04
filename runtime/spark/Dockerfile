@@ -7,6 +7,11 @@ WORKDIR /opt/spark/jobs
 # Copy the Spark Streaming script and model
 COPY reddit_flair_spark_inference.py .
 
+# COPY LGN model files
+COPY reddit_classifier.pkl .
+COPY LSA_topics.pkl .
+COPY vectorizer.pkl .
+
 # Copy pre-trained model
 COPY reddit_flair_classifier /opt/spark/models/reddit_flairs
 

@@ -1,11 +1,16 @@
-# reddit_transformer_spark.py
+# reddit_dual_model_spark.py
 
 import os
+import json
+import joblib
+import pickle
+import torch
+
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, from_json, udf, struct
 from pyspark.sql.types import StructType, StringType
 
-# 💥 Disable cache-based loading to avoid tokenizer errors
+# Hugging Face environment for offline mode
 os.environ["TRANSFORMERS_CACHE"] = "/tmp/hf-cache"
 os.environ["HF_DATASETS_CACHE"] = "/tmp/hf-cache"
 os.environ["HF_HOME"] = "/tmp/hf-home"
@@ -14,71 +19,79 @@ os.environ["HF_HUB_OFFLINE"] = "1"
 os.makedirs("/tmp/hf-cache", exist_ok=True)
 os.makedirs("/tmp/hf-home", exist_ok=True)
 
+# Load Transformer model
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
-import torch
-import joblib
-import json
 
-print(" transformers version:", __import__("transformers").__version__)
-
-# Load model and tokenizer from local path (pre-downloaded in Docker)
 model_dir = "/opt/spark/models/reddit_flairs"
-model = AutoModelForSequenceClassification.from_pretrained(model_dir)
+transformer_model = AutoModelForSequenceClassification.from_pretrained(model_dir)
 tokenizer = AutoTokenizer.from_pretrained(model_dir, local_files_only=True, use_fast=False)
-
-# 🔍 Tokenizer sanity check
-tokenizer("test")
-
 label_encoder = joblib.load(os.path.join(model_dir, "reddit_flair_label_encoder.joblib"))
 
-# Ensure model runs on CPU (Spark workers will default to this)
-device = torch.device("cpu")
-model.to(device)
-model.eval()
+transformer_model.to("cpu")
+transformer_model.eval()
 
-# Define UDF for flair prediction with confidence
-def predict_flair_transformer(row):
+# Load scikit-learn pipeline
+with open("/opt/spark/models/reddit_flairs/vectorizer.pkl", "rb") as f:
+    tfidf = pickle.load(f)
+with open("/opt/spark/models/reddit_flairs/LSA_topics.pkl", "rb") as f:
+    tsvd = pickle.load(f)
+with open("/opt/spark/models/reddit_flairs/reddit_classifier.pkl", "rb") as f:
+    classifier = pickle.load(f)
+
+flairs = label_encoder.classes_.tolist()
+
+# Define schema
+schema = StructType().add("id", StringType()).add("title", StringType()).add("content", StringType())
+
+# Define UDF
+def dual_model_prediction(row):
     content = row["content"]
-    if not content or len(content.strip()) == 0:
-        flair = "Unknown"
-        confidence = 0.0
-    else:
+
+    transformer_flair = "Unknown"
+    transformer_conf = 0.0
+    sklearn_flair = "Unknown"
+    sklearn_conf = 0.0
+
+    if content and content.strip():
+        # Transformer inference
         inputs = tokenizer(content, return_tensors="pt", truncation=True, padding=True, max_length=512)
-        inputs = {k: v.to(device) for k, v in inputs.items()}
+        inputs = {k: v.to("cpu") for k, v in inputs.items()}
         with torch.no_grad():
-            outputs = model(**inputs)
+            outputs = transformer_model(**inputs)
         probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
         pred_class = torch.argmax(probs, dim=1).item()
-        flair = label_encoder.classes_[pred_class]
-        confidence = float(probs[0][pred_class])
+        transformer_flair = flairs[pred_class]
+        transformer_conf = float(probs[0][pred_class])
+
+        # Sklearn inference
+        X = tfidf.transform([content])
+        X_reduced = tsvd.transform(X)
+        sk_probs = classifier.predict_proba(X_reduced)[0]
+        sk_class = sk_probs.argmax()
+        sklearn_flair = flairs[sk_class]
+        sklearn_conf = float(sk_probs[sk_class])
 
     return json.dumps({
         "id": row["id"],
         "title": row["title"],
         "content": content,
-        "predicted_flair": flair,
-        "confidence": confidence
+        "transformer_flair": transformer_flair,
+        "transformer_confidence": transformer_conf,
+        "sklearn_flair": sklearn_flair,
+        "sklearn_confidence": sklearn_conf
     })
 
-predict_udf = udf(predict_flair_transformer, StringType())
+predict_udf = udf(dual_model_prediction, StringType())
 
-# Initialize Spark Session
+# Init Spark
 spark = SparkSession.builder \
-    .appName("RedditKafkaTransformerInference") \
+    .appName("RedditDualModelInference") \
     .config("spark.sql.shuffle.partitions", "2") \
     .config("spark.executor.instances", "2") \
     .getOrCreate()
 
-# Define Kafka source
+# Kafka source
 kafka_bootstrap_servers = "reddit-posts-kafka-bootstrap.reddit-realtime.svc:9093"
-
-# Define Kafka topic schema
-schema = StructType() \
-    .add("id", StringType()) \
-    .add("title", StringType()) \
-    .add("content", StringType())
-
-# Read from Kafka
 df = spark.readStream \
     .format("kafka") \
     .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
@@ -87,21 +100,18 @@ df = spark.readStream \
     .option("failOnDataLoss", "false") \
     .load()
 
-# Parse JSON messages
-df_parsed = df.select(from_json(col("value").cast("string"), schema).alias("data")).select("data.*")
+parsed_df = df.select(from_json(col("value").cast("string"), schema).alias("data")).select("data.*")
 
-# Apply transformer model UDF with confidence
-predicted_df = df_parsed.withColumn("value", predict_udf(struct("id", "title", "content")))
+# Apply dual inference
+predicted_df = parsed_df.withColumn("value", predict_udf(struct("id", "title", "content")))
 
-df_parsed.printSchema()
-
-# Write predictions to Kafka
-query = predicted_df.selectExpr("value") \
+# Kafka sink
+query = predicted_df.select("value") \
     .writeStream \
     .format("kafka") \
     .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
     .option("topic", "kafka-predictions") \
-    .option("checkpointLocation", "/opt/spark/checkpoints/reddit-inference") \
+    .option("checkpointLocation", "/opt/spark/checkpoints/dual-inference") \
     .trigger(processingTime="1 minute") \
     .start()
 
