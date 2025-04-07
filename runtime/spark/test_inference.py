@@ -1,21 +1,34 @@
 import torch
 import joblib
 import json
+import pickle
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-# Path to local model
-model_dir = "./reddit_flair_classifier"
+# === Transformer Model ===
+transformer_model_dir = "./reddit_flair_classifier"
 
-# Load model + tokenizer + label encoder
-model = AutoModelForSequenceClassification.from_pretrained(model_dir)
-tokenizer = AutoTokenizer.from_pretrained(model_dir)
-label_encoder = joblib.load(f"{model_dir}/reddit_flair_label_encoder.joblib")
+# Load model, tokenizer and label encoder
+transformer_model = AutoModelForSequenceClassification.from_pretrained(transformer_model_dir)
+tokenizer = AutoTokenizer.from_pretrained(transformer_model_dir)
+transformer_label_encoder = joblib.load(f"{transformer_model_dir}/reddit_flair_label_encoder.joblib")
 
-model.eval()
+transformer_model.eval()
 device = torch.device("cpu")
-model.to(device)
+transformer_model.to(device)
 
-# Sample input (from your example)
+# === Logistic Regression Model ===
+with open("vectorizer.pkl", "rb") as f:
+    tfidf = pickle.load(f)
+
+with open("LSA_topics.pkl", "rb") as f:
+    tsvd = pickle.load(f)
+
+with open("reddit_classifier.pkl", "rb") as f:
+    classifier = pickle.load(f)
+
+logistic_flairs = ['Work', 'Misc', 'Food', 'Personal', 'Meta', 'Sports', 'Travel', 'Politics', 'Culture', 'History', 'Education', 'Language', 'Foreign']
+
+# === Sample Reddit Post ===
 post = {
     "id": "1jpfui4",
     "title": "Daily Slow Chat",
@@ -30,23 +43,36 @@ Enjoying the small talk? We have a Discord server too! We'd love to have more of
 The mod-team wishes you a nice day!"""
 }
 
-# Tokenize
+# === Transformer Inference ===
 inputs = tokenizer(post["content"], return_tensors="pt", truncation=True, padding=True, max_length=512)
 inputs = {k: v.to(device) for k, v in inputs.items()}
 
-# Predict
 with torch.no_grad():
-    outputs = model(**inputs)
+    outputs = transformer_model(**inputs)
     probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
-    pred_class = torch.argmax(probs, dim=1).item()
-    classes = list(label_encoder.classes_)
-    predicted_flair = str(classes[pred_class])
-    confidence = float(probs[0][pred_class])
+    transformer_pred_class = torch.argmax(probs, dim=1).item()
+    transformer_flair = str(transformer_label_encoder.classes_[transformer_pred_class])
+    transformer_confidence = float(probs[0][transformer_pred_class])
 
-# Output
+# === Logistic Regression Inference ===
+X = tfidf.transform([post["content"]])
+X = tsvd.transform(X)
+logistic_pred_class = classifier.predict(X)[0]
+logistic_probs = classifier.predict_proba(X)[0]
+logistic_confidence = max(logistic_probs)
+logistic_flair = logistic_flairs[logistic_pred_class]
+
+# === Output Comparison ===
 print(json.dumps({
     "id": post["id"],
     "title": post["title"],
-    "predicted_flair": predicted_flair,
-    "confidence": confidence
+    "transformer_prediction": {
+        "flair": transformer_flair,
+        "confidence": transformer_confidence
+    },
+    "logistic_regression_prediction": {
+        "flair": logistic_flair,
+        "confidence": logistic_confidence
+    },
+    "agreement": transformer_flair == logistic_flair
 }, indent=2))
