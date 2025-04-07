@@ -12,7 +12,6 @@ The architecture of the project is as follows:
 5. **Monitoring**: The pipeline is monitored using Prometheus and Grafana.
 6. **Containerization**: The pipeline is containerized using Docker.
 7. **Orchestration**: The pipeline is orchestrated using Kubernetes.
-8. **Configuration Management**: The configuration is managed using Consul.
 
 The pre-trained model can be found [here](./model).
 

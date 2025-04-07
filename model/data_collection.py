@@ -81,7 +81,7 @@ for submission in tqdm(reddit.subreddit(SUBREDDIT_NAME).new(limit=None), desc="F
 # --- Convert to DataFrame ---
 new_data = pd.DataFrame(topics_dict)
 if new_data.empty:
-    print("🟡 No new posts found today.")
+    print(" No new posts found today.")
     exit(0)
 
 new_data["timestamp"] = new_data["created"].apply(get_date)
@@ -89,7 +89,7 @@ del new_data["created"]
 
 # --- Save daily and append to master ---
 new_data.to_csv(DAILY_CSV, index=False)
-print(f"📁 Saved daily CSV: {DAILY_CSV}")
+print(f" Saved daily CSV: {DAILY_CSV}")
 
 if not existing.empty:
     combined = pd.concat([existing, new_data], ignore_index=True)
@@ -98,4 +98,4 @@ else:
     combined = new_data
 
 combined.to_csv(MASTER_CSV, index=False)
-print(f"📦 Appended {len(new_data)} new posts to {MASTER_CSV}")
+print(f" Appended {len(new_data)} new posts to {MASTER_CSV}")

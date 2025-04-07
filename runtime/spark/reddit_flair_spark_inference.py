@@ -1,5 +1,3 @@
-# reddit_dual_model_spark.py
-
 import os
 import json
 import joblib
@@ -111,7 +109,7 @@ query = predicted_df.select("value") \
     .format("kafka") \
     .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
     .option("topic", "kafka-predictions") \
-    .option("checkpointLocation", "/opt/spark/checkpoints/dual-inference") \
+    .option("checkpointLocation", "/opt/spark/checkpoints/reddit-inference") \
     .trigger(processingTime="1 minute") \
     .start()
 
