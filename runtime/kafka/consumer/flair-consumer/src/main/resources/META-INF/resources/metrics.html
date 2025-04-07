@@ -64,6 +64,10 @@
   <h2>Avg Confidence Gap (|Transformer - Sklearn|)</h2>
   <canvas id="gapChart"></canvas>
 
+  <!-- Confidence Gap -->
+  <h2>Agreement Counts per Flair</h2>
+  <canvas id="agreementCountChart"></canvas>
+
   <script>
     // Utility to fetch and parse metrics
     async function fetchMetrics() {
@@ -211,6 +215,22 @@
       });
     }
 
+    async function fetchFlairStats() {
+      const res = await fetch('/flairs/statistics');
+      return await res.json();
+    }
+
+    async function updateAgreementCountChart() {
+      const data = await fetchFlairStats();
+      const stats = data.flairs;
+      const labels = Object.keys(stats);
+      const agreementCounts = labels.map(flair => Math.round(stats[flair].agreement_rate * stats[flair].count));
+
+      agreementCountChart.data.labels = labels;
+      agreementCountChart.data.datasets[0].data = agreementCounts;
+      agreementCountChart.update();
+    }
+
     async function updateFlairCharts() {
       const res = await fetch('/flairs/statistics');
       const data = await res.json();
@@ -248,8 +268,10 @@
       [flairCountChart, flairConfidenceChart, confidenceComparisonChart, agreementChart, gapChart].forEach(chart => chart.update());
     }
 
+    setInterval(updateAgreementCountChart, 10000);
     setInterval(updateCharts, 5000);
     setInterval(updateFlairCharts, 10000);
+    updateAgreementCountChart();
     updateFlairCharts();
   </script>
 </body>

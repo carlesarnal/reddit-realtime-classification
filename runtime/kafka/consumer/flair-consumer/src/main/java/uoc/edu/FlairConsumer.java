@@ -1,6 +1,5 @@
 package uoc.edu;
 
-import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.annotations.Blocking;
@@ -30,8 +29,7 @@ public class FlairConsumer {
     private final Map<String, Double> transformerConfidenceSum = new ConcurrentHashMap<>();
     private final Map<String, Double> sklearnConfidenceSum = new ConcurrentHashMap<>();
 
-    private int totalCompared = 0;
-    private int matchingPredictions = 0;
+    private final Map<String, Integer> flairAgreementCount = new ConcurrentHashMap<>();
 
     @Inject
     MeterRegistry registry;
@@ -43,33 +41,32 @@ public class FlairConsumer {
 
         try {
             JsonObject json = new JsonObject(record.getPayload());
-
             String transformerFlair = json.getString("transformer_flair", "Unknown");
-            Double transformerConfidence = json.getDouble("transformer_confidence", 0.0);
+            double transformerConfidence = json.getDouble("transformer_confidence", 0.0);
 
             String sklearnFlair = json.getString("sklearn_flair", "Unknown");
-            Double sklearnConfidence = json.getDouble("sklearn_confidence", 0.0);
+            double sklearnConfidence = json.getDouble("sklearn_confidence", 0.0);
 
-            // Count and confidence updates
+            // Update transformer stats
             transformerCounts.merge(transformerFlair, 1, Integer::sum);
             transformerConfidenceSum.merge(transformerFlair, transformerConfidence, Double::sum);
 
+            // Update sklearn stats
             sklearnCounts.merge(sklearnFlair, 1, Integer::sum);
             sklearnConfidenceSum.merge(sklearnFlair, sklearnConfidence, Double::sum);
 
-            // Matching predictions counter
-            totalCompared++;
+            // Track agreement
             if (transformerFlair.equals(sklearnFlair)) {
-                matchingPredictions++;
+                flairAgreementCount.merge(transformerFlair, 1, Integer::sum);
             }
 
-            // Micrometer counters
-            registry.counter("flair_transformer_total", "flair", transformerFlair).increment();
-            registry.counter("flair_sklearn_total", "flair", sklearnFlair).increment();
+            // Prometheus counters
+            registry.counter("flair_messages_total", "model", "transformer", "flair", transformerFlair).increment();
+            registry.counter("flair_messages_total", "model", "sklearn", "flair", sklearnFlair).increment();
 
             record.ack();
-
-        } catch (Exception e) {
+        }
+        catch (Exception e) {
             registry.counter("flair_message_errors_total").increment();
             LOG.error("Failed to parse message", e);
         }
@@ -78,33 +75,35 @@ public class FlairConsumer {
     }
 
     @GET
-@Path("/statistics")
-@Produces(MediaType.APPLICATION_JSON)
-public Response getStatistics() {
-    JsonObject response = new JsonObject();
-    JsonObject flairsJson = new JsonObject();
+    @Path("/statistics")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getStatistics() {
+        JsonObject response = new JsonObject();
+        JsonObject flairsJson = new JsonObject();
 
-    for (String flair : transformerCounts.keySet()) {
-        int transformerCount = transformerCounts.getOrDefault(flair, 0);
-        int sklearnCount = sklearnCounts.getOrDefault(flair, 0);
-        double transformerAvg = transformerConfidenceSum.getOrDefault(flair, 0.0) / Math.max(1, transformerCount);
-        double sklearnAvg = sklearnConfidenceSum.getOrDefault(flair, 0.0) / Math.max(1, sklearnCount);
+        for (String flair : transformerCounts.keySet()) {
+            int transformerCount = transformerCounts.getOrDefault(flair, 0);
+            int sklearnCount = sklearnCounts.getOrDefault(flair, 0);
+            double transformerAvg = transformerConfidenceSum.getOrDefault(flair, 0.0) / Math.max(1, transformerCount);
+            double sklearnAvg = sklearnConfidenceSum.getOrDefault(flair, 0.0) / Math.max(1, sklearnCount);
+            double avgGap = Math.abs(transformerAvg - sklearnAvg);
 
-        double avgGap = Math.abs(transformerAvg - sklearnAvg);
-        double agreementRate = (transformerCount > 0 && sklearnCount > 0 && transformerCount == sklearnCount) ? 1.0 : 0.0;
+            int agreements = flairAgreementCount.getOrDefault(flair, 0);
+            int total = Math.max(transformerCount, sklearnCount);
+            double agreementRate = total > 0 ? (double) agreements / total : 0.0;
 
-        JsonObject flairStats = new JsonObject()
-            .put("count", Math.max(transformerCount, sklearnCount))
-            .put("avg_confidence", (transformerAvg + sklearnAvg) / 2)
-            .put("avg_confidence_transformer", transformerAvg)
-            .put("avg_confidence_sklearn", sklearnAvg)
-            .put("agreement_rate", agreementRate)
-            .put("avg_confidence_gap", Math.round(avgGap * 100.0) / 100.0);
+            JsonObject flairStats = new JsonObject()
+                    .put("count", total)
+                    .put("avg_confidence", (transformerAvg + sklearnAvg) / 2)
+                    .put("avg_confidence_transformer", transformerAvg)
+                    .put("avg_confidence_sklearn", sklearnAvg)
+                    .put("agreement_rate", agreementRate)
+                    .put("avg_confidence_gap", Math.round(avgGap * 100.0) / 100.0);
 
-        flairsJson.put(flair, flairStats);
+            flairsJson.put(flair, flairStats);
+        }
+
+        response.put("flairs", flairsJson);
+        return Response.ok(response).build();
     }
-
-    response.put("flairs", flairsJson);
-    return Response.ok(response).build();
-}
 }
