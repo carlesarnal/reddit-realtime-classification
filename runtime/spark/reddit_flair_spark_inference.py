@@ -109,7 +109,7 @@ query = predicted_df.select("value") \
     .format("kafka") \
     .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
     .option("topic", "kafka-predictions") \
-    .option("checkpointLocation", "/opt/spark/checkpoints/reddit-inference") \
+    .option("checkpointLocation", "/tmp/spark-checkpoints") \
     .trigger(processingTime="1 minute") \
     .start()
 
