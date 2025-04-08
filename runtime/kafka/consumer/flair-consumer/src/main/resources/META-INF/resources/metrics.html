@@ -3,7 +3,7 @@
 <head>
     <title>Metrics Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@1.3.0/dist/chartjs-chart-matrix.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         body {
             font-family: sans-serif;
@@ -13,14 +13,29 @@
             padding: 20px;
         }
 
-        canvas {
-            margin-bottom: 40px;
-            max-width: 100%;
-        }
-
         h2 {
             margin-top: 40px;
             font-size: 18px;
+        }
+
+        .heatmap rect {
+            stroke: #fff;
+        }
+
+        .heatmap text {
+            font-size: 10px;
+            text-anchor: middle;
+        }
+
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            display: none;
         }
     </style>
 </head>
@@ -70,6 +85,10 @@
 <!-- Confidence Gap -->
 <h2>Flair Confusion Matrix</h2>
 <canvas id="confusionMatrixChart"></canvas>
+
+<h2>Confusion Matrix Heatmap (D3.js)</h2>
+<div id="confusion-matrix"></div>
+<div class="tooltip" id="tooltip"></div>
 
 <script>
     // Utility to fetch and parse metrics
@@ -177,66 +196,6 @@
         options: {responsive: true, scales: {y: {beginAtZero: true, max: 1}}}
     });
 
-    const confusionMatrixChart = new Chart(document.getElementById('confusionMatrixChart'), {
-        type: 'matrix',
-        data: {
-            datasets: [{
-                label: 'Confusion Matrix',
-                data: [],
-                backgroundColor(ctx) {
-                    const v = ctx.raw?.v ?? 0;
-                    const alpha = Math.min(1, v / 10);
-                    return `rgba(0, 123, 255, ${alpha})`;
-                },
-                borderWidth: 1,
-                borderColor: 'black',
-                width(ctx) {
-                    const a = ctx.chart.chartArea;
-                    return a ? a.width / ctx.chart.scales.x.ticks.length : 20;
-                },
-                height(ctx) {
-                    const a = ctx.chart.chartArea;
-                    return a ? a.height / ctx.chart.scales.y.ticks.length : 20;
-                }
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: {
-                    type: 'category',
-                    labels: [],
-                    offset: true,
-                    grid: {
-                        display: false
-                    }
-                },
-                y: {
-                    type: 'category',
-                    labels: [],
-                    offset: true,
-                    reverse: true,
-                    grid: {
-                        display: false
-                    }
-                }
-            },
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        title: () => '',
-                        label: ctx => {
-                            const d = ctx.raw;
-                            return `Sklearn: ${d.y}, Transformer: ${d.x}, Count: ${d.v}`;
-                        }
-                    }
-                },
-                legend: {display: false}
-            }
-        }
-    });
-
     async function updateCharts() {
         const text = await fetchMetrics();
         const now = new Date().toLocaleTimeString();
@@ -278,29 +237,65 @@
         });
     }
 
-    async function updateConfusionMatrixChart() {
+    async function drawConfusionMatrix() {
         const res = await fetch('/flairs/confusion-matrix');
         const json = await res.json();
         const labels = json.labels;
         const matrix = json.matrix;
 
-        const matrixData = [];
+        const container = d3.select("#confusion-matrix");
+        const tooltip = d3.select("#tooltip");
 
-        for (let i = 0; i < labels.length; i++) {
-            for (let j = 0; j < labels.length; j++) {
-                const count = matrix[i][j];
-                matrixData.push({
-                    x: labels[j], // transformer flair (column)
-                    y: labels[i], // sklearn flair (row)
-                    v: count
-                });
-            }
-        }
+        const cellSize = 40;
+        const width = labels.length * cellSize;
+        const height = labels.length * cellSize;
 
-        confusionMatrixChart.options.scales.x.labels = labels;
-        confusionMatrixChart.options.scales.y.labels = labels;
-        confusionMatrixChart.data.datasets[0].data = matrixData;
-        confusionMatrixChart.update();
+        const maxVal = d3.max(matrix.flat());
+
+        const color = d3.scaleLinear()
+            .domain([0, maxVal])
+            .range(["#ffffff", "#007bff"]);
+
+        const svg = container.append("svg")
+            .attr("width", width + 100)
+            .attr("height", height + 100)
+            .append("g")
+            .attr("transform", "translate(80,20)");
+
+        // Draw cells
+        labels.forEach((rowLabel, row) => {
+            labels.forEach((colLabel, col) => {
+                const val = matrix[row][col];
+
+                svg.append("rect")
+                    .attr("x", col * cellSize)
+                    .attr("y", row * cellSize)
+                    .attr("width", cellSize)
+                    .attr("height", cellSize)
+                    .attr("fill", color(val))
+                    .on("mousemove", (event) => {
+                        tooltip.style("left", event.pageX + 10 + "px")
+                            .style("top", event.pageY - 20 + "px")
+                            .style("display", "inline-block")
+                            .html(`<strong>Sklearn:</strong> ${rowLabel}<br><strong>Transformer:</strong> ${colLabel}<br><strong>Count:</strong> ${val}`);
+                    })
+                    .on("mouseout", () => tooltip.style("display", "none"));
+            });
+        });
+
+        // Axis labels
+        svg.selectAll(".x-label")
+            .data(labels)
+            .enter()
+            .append("text")
+            .attr("x", (d, i) => i * cellSize + cellSize / 2)
+            .attr("y", -5)
+            .attr("text-anchor", "middle")
+            .attr("transform", (d, i) => `rotate(-45, ${i * cellSize + cellSize / 2}, -5)`)
+            .text(d => d);
+
+        svg.selectAll(".y-label")
+            .data(labels)
     }
 
     async function updateFlairCharts() {
@@ -342,10 +337,8 @@
 
     setInterval(updateCharts, 5000);
     setInterval(updateFlairCharts, 10000);
-    setInterval(updateConfusionMatrixChart, 15000);
-
+    drawConfusionMatrix();
     updateFlairCharts();
-    updateConfusionMatrixChart();
 </script>
 </body>
 </html>
