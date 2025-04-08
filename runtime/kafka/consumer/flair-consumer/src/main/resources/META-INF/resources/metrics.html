@@ -1,278 +1,319 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>PhD Metrics Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body {
-      font-family: sans-serif;
-      font-size: 14px;
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-    canvas {
-      margin-bottom: 40px;
-      max-width: 100%;
-    }
-    h2 {
-      margin-top: 40px;
-      font-size: 18px;
-    }
-  </style>
+    <title>Metrics Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            font-size: 14px;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        canvas {
+            margin-bottom: 40px;
+            max-width: 100%;
+        }
+
+        h2 {
+            margin-top: 40px;
+            font-size: 18px;
+        }
+    </style>
 </head>
 <body>
-  <h1>PhD Metrics Dashboard</h1>
+<h1>PhD Metrics Dashboard</h1>
 
-  <!-- CPU Usage -->
-  <h2>CPU Usage</h2>
-  <canvas id="cpuChart"></canvas>
+<!-- CPU Usage -->
+<h2>CPU Usage</h2>
+<canvas id="cpuChart"></canvas>
 
-  <!-- System Load -->
-  <h2>System Load (1 min avg)</h2>
-  <canvas id="loadChart"></canvas>
+<!-- System Load -->
+<h2>System Load (1 min avg)</h2>
+<canvas id="loadChart"></canvas>
 
-  <!-- Kafka Consumer Stats -->
-  <h2>Kafka Consumer Stats Over Time</h2>
-  <canvas id="kafkaTrendsChart"></canvas>
+<!-- Kafka Consumer Stats -->
+<h2>Kafka Consumer Stats Over Time</h2>
+<canvas id="kafkaTrendsChart"></canvas>
 
-  <!-- Heap Memory Usage -->
-  <h2>Heap Memory Usage</h2>
-  <canvas id="heapChart"></canvas>
+<!-- Heap Memory Usage -->
+<h2>Heap Memory Usage</h2>
+<canvas id="heapChart"></canvas>
 
-  <!-- Thread States -->
-  <h2>JVM Thread States</h2>
-  <canvas id="threadChart"></canvas>
+<!-- Thread States -->
+<h2>JVM Thread States</h2>
+<canvas id="threadChart"></canvas>
 
-  <!-- Flair Count -->
-  <h2>Flair Distribution</h2>
-  <canvas id="flairCountChart"></canvas>
+<!-- Flair Count -->
+<h2>Flair Distribution</h2>
+<canvas id="flairCountChart"></canvas>
 
-  <!-- Flair Confidence -->
-  <h2>Average Flair Confidence</h2>
-  <canvas id="flairConfidenceChart"></canvas>
+<!-- Flair Confidence -->
+<h2>Average Flair Confidence</h2>
+<canvas id="flairConfidenceChart"></canvas>
 
-  <!-- Model Comparison -->
-  <h2>Model Confidence Comparison (Transformer vs Sklearn)</h2>
-  <canvas id="confidenceComparisonChart"></canvas>
+<!-- Model Comparison -->
+<h2>Model Confidence Comparison (Transformer vs Sklearn)</h2>
+<canvas id="confidenceComparisonChart"></canvas>
 
-  <!-- Agreement Rate -->
-  <h2>Agreement Rate per Flair</h2>
-  <canvas id="agreementChart"></canvas>
+<!-- Agreement Rate -->
+<h2>Agreement Rate per Flair</h2>
+<canvas id="agreementChart"></canvas>
 
-  <!-- Confidence Gap -->
-  <h2>Avg Confidence Gap (|Transformer - Sklearn|)</h2>
-  <canvas id="gapChart"></canvas>
+<!-- Confidence Gap -->
+<h2>Avg Confidence Gap (|Transformer - Sklearn|)</h2>
+<canvas id="gapChart"></canvas>
 
-  <!-- Confidence Gap -->
-  <h2>Agreement Counts per Flair</h2>
-  <canvas id="agreementCountChart"></canvas>
+<!-- Confidence Gap -->
+<h2>Flair Confusion Matrix</h2>
+<canvas id="confusionMatrixChart"></canvas>
 
-  <script>
+<script>
     // Utility to fetch and parse metrics
     async function fetchMetrics() {
-      const res = await fetch('/q/metrics');
-      return await res.text();
+        const res = await fetch('/q/metrics');
+        return await res.text();
     }
 
     async function parseMetric(text, pattern) {
-      const match = text.match(pattern);
-      return match ? parseFloat(match[1]) : 0;
+        const match = text.match(pattern);
+        return match ? parseFloat(match[1]) : 0;
     }
 
     // === Chart.js Initialization ===
 
     const cpuChart = new Chart(document.getElementById('cpuChart'), {
-      type: 'line',
-      data: { labels: [], datasets: [{ label: 'CPU (%)', data: [], borderColor: 'blue' }] },
-      options: { scales: { y: { beginAtZero: true, max: 100 } } }
+        type: 'line',
+        data: {labels: [], datasets: [{label: 'CPU (%)', data: [], borderColor: 'blue'}]},
+        options: {scales: {y: {beginAtZero: true, max: 100}}}
     });
 
     const loadChart = new Chart(document.getElementById('loadChart'), {
-      type: 'line',
-      data: { labels: [], datasets: [{ label: 'Load Avg (1m)', data: [], borderColor: 'purple' }] },
-      options: { scales: { y: { beginAtZero: true } } }
+        type: 'line',
+        data: {labels: [], datasets: [{label: 'Load Avg (1m)', data: [], borderColor: 'purple'}]},
+        options: {scales: {y: {beginAtZero: true}}}
     });
 
     const kafkaChart = new Chart(document.getElementById('kafkaTrendsChart'), {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [
-          { label: 'Consumed Records', data: [], borderColor: 'orange' },
-          { label: 'Consumption Rate', data: [], borderColor: 'green' },
-          { label: 'Fetch Latency (ms)', data: [], borderColor: 'red' }
-        ]
-      },
-      options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {label: 'Consumed Records', data: [], borderColor: 'orange'},
+                {label: 'Consumption Rate', data: [], borderColor: 'green'},
+                {label: 'Fetch Latency (ms)', data: [], borderColor: 'red'}
+            ]
+        },
+        options: {responsive: true, scales: {y: {beginAtZero: true}}}
     });
 
     const heapChart = new Chart(document.getElementById('heapChart'), {
-      type: 'line',
-      data: {
-        labels: [],
-        datasets: [
-          { label: 'Heap Used (MB)', data: [], borderColor: 'steelblue' },
-          { label: 'Heap Max (MB)', data: [], borderColor: 'gray' }
-        ]
-      },
-      options: { scales: { y: { beginAtZero: true } } }
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {label: 'Heap Used (MB)', data: [], borderColor: 'steelblue'},
+                {label: 'Heap Max (MB)', data: [], borderColor: 'gray'}
+            ]
+        },
+        options: {scales: {y: {beginAtZero: true}}}
     });
 
     const threadChart = new Chart(document.getElementById('threadChart'), {
-      type: 'bar',
-      data: {
-        labels: ['Runnable', 'Blocked', 'Waiting', 'Timed Waiting'],
-        datasets: [{
-          label: 'Threads',
-          data: [0, 0, 0, 0],
-          backgroundColor: ['blue', 'red', 'orange', 'green']
-        }]
-      },
-      options: { indexAxis: 'y', scales: { x: { beginAtZero: true } } }
+        type: 'bar',
+        data: {
+            labels: ['Runnable', 'Blocked', 'Waiting', 'Timed Waiting'],
+            datasets: [{
+                label: 'Threads',
+                data: [0, 0, 0, 0],
+                backgroundColor: ['blue', 'red', 'orange', 'green']
+            }]
+        },
+        options: {indexAxis: 'y', scales: {x: {beginAtZero: true}}}
     });
 
     const flairCountChart = new Chart(document.getElementById('flairCountChart'), {
-      type: 'bar',
-      data: { labels: [], datasets: [{ label: 'Count', data: [], backgroundColor: 'teal' }] },
-      options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        type: 'bar',
+        data: {labels: [], datasets: [{label: 'Count', data: [], backgroundColor: 'teal'}]},
+        options: {responsive: true, scales: {y: {beginAtZero: true}}}
     });
 
     const flairConfidenceChart = new Chart(document.getElementById('flairConfidenceChart'), {
-      type: 'bar',
-      data: { labels: [], datasets: [{ label: 'Avg Confidence', data: [], backgroundColor: 'coral' }] },
-      options: { responsive: true, scales: { y: { beginAtZero: true, max: 1 } } }
+        type: 'bar',
+        data: {labels: [], datasets: [{label: 'Avg Confidence', data: [], backgroundColor: 'coral'}]},
+        options: {responsive: true, scales: {y: {beginAtZero: true, max: 1}}}
     });
 
     const confidenceComparisonChart = new Chart(document.getElementById('confidenceComparisonChart'), {
-      type: 'bar',
-      data: {
-        labels: [],
-        datasets: [
-          { label: 'Transformer', data: [], backgroundColor: 'dodgerblue' },
-          { label: 'Sklearn', data: [], backgroundColor: 'orange' }
-        ]
-      },
-      options: { responsive: true, scales: { y: { beginAtZero: true, max: 1 } } }
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: [
+                {label: 'Transformer', data: [], backgroundColor: 'dodgerblue'},
+                {label: 'Sklearn', data: [], backgroundColor: 'orange'}
+            ]
+        },
+        options: {responsive: true, scales: {y: {beginAtZero: true, max: 1}}}
     });
 
     const agreementChart = new Chart(document.getElementById('agreementChart'), {
-      type: 'bar',
-      data: {
-        labels: [],
-        datasets: [{ label: 'Agreement Rate', data: [], backgroundColor: 'seagreen' }]
-      },
-      options: { responsive: true, scales: { y: { beginAtZero: true, max: 1 } } }
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: [{label: 'Agreement Rate', data: [], backgroundColor: 'seagreen'}]
+        },
+        options: {responsive: true, scales: {y: {beginAtZero: true, max: 1}}}
     });
 
     const gapChart = new Chart(document.getElementById('gapChart'), {
-      type: 'bar',
-      data: {
-        labels: [],
-        datasets: [{ label: 'Confidence Gap', data: [], backgroundColor: 'crimson' }]
-      },
-      options: { responsive: true, scales: { y: { beginAtZero: true, max: 1 } } }
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: [{label: 'Confidence Gap', data: [], backgroundColor: 'crimson'}]
+        },
+        options: {responsive: true, scales: {y: {beginAtZero: true, max: 1}}}
+    });
+
+    const confusionMatrixChart = new Chart(document.getElementById('confusionMatrixChart'), {
+        type: 'matrix',
+        data: {
+            datasets: [{
+                label: 'Confusion Matrix',
+                data: [],
+                backgroundColor(c) {
+                    const v = c.dataset.data[c.dataIndex].v;
+                    const alpha = Math.min(1, v / 10);
+                    return `rgba(255, 99, 132, ${alpha})`;
+                },
+                width: ctx => ctx.chart.chartArea.width / ctx.chart.data.xLabels.length,
+                height: ctx => ctx.chart.chartArea.height / ctx.chart.data.yLabels.length
+            }],
+            xLabels: [],
+            yLabels: []
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: {type: 'category', labels: [], offset: true},
+                y: {type: 'category', labels: [], offset: true, reverse: true}
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        title: () => '',
+                        label: c => {
+                            const d = c.raw;
+                            return `Sklearn: ${d.y}, Transformer: ${d.x}, Count: ${d.v}`;
+                        }
+                    }
+                }
+            }
+        }
     });
 
     async function updateCharts() {
-      const text = await fetchMetrics();
-      const now = new Date().toLocaleTimeString();
+        const text = await fetchMetrics();
+        const now = new Date().toLocaleTimeString();
 
-      const cpu = await parseMetric(text, /process_cpu_usage\s+(\d+\.?\d*)/);
-      const load = await parseMetric(text, /system_load_average_1m\s+(\d+\.?\d*)/);
-      const consumed = await parseMetric(text, /kafka_consumer_fetch_manager_records_consumed_total\{.*\}\s+(\d+\.?\d*)/);
-      const rate = await parseMetric(text, /kafka_consumer_fetch_manager_records_consumed_rate\{.*\}\s+(\d+\.?\d*)/);
-      const latency = await parseMetric(text, /kafka_consumer_fetch_manager_fetch_latency_avg\{.*\}\s+(\d+\.?\d*)/);
-      const heapUsed = await parseMetric(text, /jvm_memory_used_bytes\{.*PS Old Gen.*\}\s+(\d+\.?\d*)/);
-      const heapMax = await parseMetric(text, /jvm_memory_max_bytes\{.*PS Old Gen.*\}\s+(\d+\.?\d*)/);
-      const runnable = await parseMetric(text, /jvm_threads_states_threads\{state="runnable".*\}\s+(\d+\.?\d*)/);
-      const blocked = await parseMetric(text, /jvm_threads_states_threads\{state="blocked".*\}\s+(\d+\.?\d*)/);
-      const waiting = await parseMetric(text, /jvm_threads_states_threads\{state="waiting".*\}\s+(\d+\.?\d*)/);
-      const timed = await parseMetric(text, /jvm_threads_states_threads\{state="timed-waiting".*\}\s+(\d+\.?\d*)/);
+        const cpu = await parseMetric(text, /process_cpu_usage\s+(\d+\.?\d*)/);
+        const load = await parseMetric(text, /system_load_average_1m\s+(\d+\.?\d*)/);
+        const consumed = await parseMetric(text, /kafka_consumer_fetch_manager_records_consumed_total\{.*\}\s+(\d+\.?\d*)/);
+        const rate = await parseMetric(text, /kafka_consumer_fetch_manager_records_consumed_rate\{.*\}\s+(\d+\.?\d*)/);
+        const latency = await parseMetric(text, /kafka_consumer_fetch_manager_fetch_latency_avg\{.*\}\s+(\d+\.?\d*)/);
+        const heapUsed = await parseMetric(text, /jvm_memory_used_bytes\{.*PS Old Gen.*\}\s+(\d+\.?\d*)/);
+        const heapMax = await parseMetric(text, /jvm_memory_max_bytes\{.*PS Old Gen.*\}\s+(\d+\.?\d*)/);
+        const runnable = await parseMetric(text, /jvm_threads_states_threads\{state="runnable".*\}\s+(\d+\.?\d*)/);
+        const blocked = await parseMetric(text, /jvm_threads_states_threads\{state="blocked".*\}\s+(\d+\.?\d*)/);
+        const waiting = await parseMetric(text, /jvm_threads_states_threads\{state="waiting".*\}\s+(\d+\.?\d*)/);
+        const timed = await parseMetric(text, /jvm_threads_states_threads\{state="timed-waiting".*\}\s+(\d+\.?\d*)/);
 
-      cpuChart.data.labels.push(now);
-      loadChart.data.labels.push(now);
-      kafkaChart.data.labels.push(now);
-      heapChart.data.labels.push(now);
+        cpuChart.data.labels.push(now);
+        loadChart.data.labels.push(now);
+        kafkaChart.data.labels.push(now);
+        heapChart.data.labels.push(now);
 
-      cpuChart.data.datasets[0].data.push(cpu * 100);
-      loadChart.data.datasets[0].data.push(load);
-      kafkaChart.data.datasets[0].data.push(consumed);
-      kafkaChart.data.datasets[1].data.push(rate);
-      kafkaChart.data.datasets[2].data.push(latency);
-      heapChart.data.datasets[0].data.push(heapUsed / 1024 / 1024);
-      heapChart.data.datasets[1].data.push(heapMax / 1024 / 1024);
+        cpuChart.data.datasets[0].data.push(cpu * 100);
+        loadChart.data.datasets[0].data.push(load);
+        kafkaChart.data.datasets[0].data.push(consumed);
+        kafkaChart.data.datasets[1].data.push(rate);
+        kafkaChart.data.datasets[2].data.push(latency);
+        heapChart.data.datasets[0].data.push(heapUsed / 1024 / 1024);
+        heapChart.data.datasets[1].data.push(heapMax / 1024 / 1024);
 
-      threadChart.data.datasets[0].data = [runnable, blocked, waiting, timed];
+        threadChart.data.datasets[0].data = [runnable, blocked, waiting, timed];
 
-      const charts = [cpuChart, loadChart, kafkaChart, heapChart, threadChart];
-      charts.forEach(chart => {
-        if (chart.data.labels.length > 30) {
-          chart.data.labels.shift();
-          chart.data.datasets.forEach(ds => ds.data.shift());
+        const charts = [cpuChart, loadChart, kafkaChart, heapChart, threadChart];
+        charts.forEach(chart => {
+            if (chart.data.labels.length > 30) {
+                chart.data.labels.shift();
+                chart.data.datasets.forEach(ds => ds.data.shift());
+            }
+            chart.update();
+        });
+    }
+
+    async function updateConfusionMatrix() {
+        const res = await fetch('/flairs/confusion-matrix');
+        const json = await res.json();
+        const labels = json.labels;
+        const matrix = json.matrix;
+
+        const matrixData = [];
+        for (let i = 0; i < labels.length; i++) {
+            for (let j = 0; j < labels.length; j++) {
+                matrixData.push({x: labels[j], y: labels[i], v: matrix[i][j]});
+            }
         }
-        chart.update();
-      });
-    }
 
-    async function fetchFlairStats() {
-      const res = await fetch('/flairs/statistics');
-      return await res.json();
-    }
-
-    async function updateAgreementCountChart() {
-      const data = await fetchFlairStats();
-      const stats = data.flairs;
-      const labels = Object.keys(stats);
-      const agreementCounts = labels.map(flair => Math.round(stats[flair].agreement_rate * stats[flair].count));
-
-      agreementCountChart.data.labels = labels;
-      agreementCountChart.data.datasets[0].data = agreementCounts;
-      agreementCountChart.update();
+        confusionMatrixChart.data.xLabels = labels;
+        confusionMatrixChart.data.yLabels = labels;
+        confusionMatrixChart.data.datasets[0].data = matrixData;
+        confusionMatrixChart.update();
     }
 
     async function updateFlairCharts() {
-      const res = await fetch('/flairs/statistics');
-      const data = await res.json();
-      const stats = data.flairs;
-      const labels = Object.keys(stats);
+        const res = await fetch('/flairs/statistics');
+        const data = await res.json();
+        const stats = data.flairs;
+        const labels = Object.keys(stats);
 
-      const counts = [], avgConfidence = [], transformer = [], sklearn = [], agreement = [], gap = [];
+        const counts = [], avgConfidence = [], transformer = [], sklearn = [], agreement = [], gap = [];
 
-      for (const flair of labels) {
-        const stat = stats[flair];
-        counts.push(stat.count);
-        avgConfidence.push(stat.avg_confidence);
-        transformer.push(stat.avg_confidence_transformer);
-        sklearn.push(stat.avg_confidence_sklearn);
-        agreement.push(stat.agreement_rate);
-        gap.push(stat.avg_confidence_gap);
-      }
+        for (const flair of labels) {
+            const stat = stats[flair];
+            counts.push(stat.count);
+            avgConfidence.push(stat.avg_confidence);
+            transformer.push(stat.avg_confidence_transformer);
+            sklearn.push(stat.avg_confidence_sklearn);
+            agreement.push(stat.agreement_rate);
+            gap.push(stat.avg_confidence_gap);
+        }
 
-      flairCountChart.data.labels = labels;
-      flairCountChart.data.datasets[0].data = counts;
+        flairCountChart.data.labels = labels;
+        flairCountChart.data.datasets[0].data = counts;
 
-      flairConfidenceChart.data.labels = labels;
-      flairConfidenceChart.data.datasets[0].data = avgConfidence;
+        flairConfidenceChart.data.labels = labels;
+        flairConfidenceChart.data.datasets[0].data = avgConfidence;
 
-      confidenceComparisonChart.data.labels = labels;
-      confidenceComparisonChart.data.datasets[0].data = transformer;
-      confidenceComparisonChart.data.datasets[1].data = sklearn;
+        confidenceComparisonChart.data.labels = labels;
+        confidenceComparisonChart.data.datasets[0].data = transformer;
+        confidenceComparisonChart.data.datasets[1].data = sklearn;
 
-      agreementChart.data.labels = labels;
-      agreementChart.data.datasets[0].data = agreement;
+        agreementChart.data.labels = labels;
+        agreementChart.data.datasets[0].data = agreement;
 
-      gapChart.data.labels = labels;
-      gapChart.data.datasets[0].data = gap;
+        gapChart.data.labels = labels;
+        gapChart.data.datasets[0].data = gap;
 
-      [flairCountChart, flairConfidenceChart, confidenceComparisonChart, agreementChart, gapChart].forEach(chart => chart.update());
+        [flairCountChart, flairConfidenceChart, confidenceComparisonChart, agreementChart, gapChart].forEach(chart => chart.update());
     }
 
-    setInterval(updateAgreementCountChart, 10000);
     setInterval(updateCharts, 5000);
     setInterval(updateFlairCharts, 10000);
-    updateAgreementCountChart();
     updateFlairCharts();
-  </script>
+    updateConfusionMatrix();
+</script>
 </body>
 </html>

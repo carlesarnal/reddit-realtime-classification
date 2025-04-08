@@ -15,7 +15,13 @@ import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.jboss.logging.Logger;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
@@ -30,6 +36,7 @@ public class FlairConsumer {
     private final Map<String, Double> sklearnConfidenceSum = new ConcurrentHashMap<>();
 
     private final Map<String, Integer> flairAgreementCount = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Integer>> confusionMatrix = new ConcurrentHashMap<>();
 
     @Inject
     MeterRegistry registry;
@@ -59,6 +66,10 @@ public class FlairConsumer {
             if (transformerFlair.equals(sklearnFlair)) {
                 flairAgreementCount.merge(transformerFlair, 1, Integer::sum);
             }
+
+            confusionMatrix
+                    .computeIfAbsent(sklearnFlair, k -> new ConcurrentHashMap<>())
+                    .merge(transformerFlair, 1, Integer::sum);
 
             // Prometheus counters
             registry.counter("flair_messages_total", "model", "transformer", "flair", transformerFlair).increment();
@@ -104,6 +115,38 @@ public class FlairConsumer {
         }
 
         response.put("flairs", flairsJson);
+        return Response.ok(response).build();
+    }
+
+    @GET
+    @Path("/confusion-matrix")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getConfusionMatrix() {
+        JsonObject response = new JsonObject();
+        Set<String> allFlairs = new TreeSet<>();
+        confusionMatrix.forEach((sk, innerMap) -> {
+            allFlairs.add(sk);
+            allFlairs.addAll(innerMap.keySet());
+        });
+
+        List<String> flairList = new ArrayList<>(allFlairs);
+        Collections.sort(flairList); // ensure matrix is ordered consistently
+
+        int size = flairList.size();
+        int[][] matrix = new int[size][size];
+
+        for (int i = 0; i < size; i++) {
+            String sk = flairList.get(i);
+            Map<String, Integer> row = confusionMatrix.getOrDefault(sk, new HashMap<>());
+            for (int j = 0; j < size; j++) {
+                String tf = flairList.get(j);
+                matrix[i][j] = row.getOrDefault(tf, 0);
+            }
+        }
+
+        response.put("labels", flairList);
+        response.put("matrix", matrix);
+
         return Response.ok(response).build();
     }
 }
