@@ -183,40 +183,56 @@
             datasets: [{
                 label: 'Confusion Matrix',
                 data: [],
-                backgroundColor(c) {
-                    const v = c.raw?.v ?? 0;
+                backgroundColor(ctx) {
+                    const v = ctx.raw?.v ?? 0;
                     const alpha = Math.min(1, v / 10);
-                    return `rgba(255, 99, 132, ${alpha})`;
+                    return `rgba(0, 123, 255, ${alpha})`;
                 },
-                width: ctx => ctx.chart.chartArea.width / ctx.chart.options.scales.x.labels.length,
-                height: ctx => ctx.chart.chartArea.height / ctx.chart.options.scales.y.labels.length
+                borderWidth: 1,
+                borderColor: 'black',
+                width(ctx) {
+                    const a = ctx.chart.chartArea;
+                    return a ? a.width / ctx.chart.scales.x.ticks.length : 20;
+                },
+                height(ctx) {
+                    const a = ctx.chart.chartArea;
+                    return a ? a.height / ctx.chart.scales.y.ticks.length : 20;
+                }
             }]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             scales: {
                 x: {
                     type: 'category',
                     labels: [],
-                    offset: true
+                    offset: true,
+                    grid: {
+                        display: false
+                    }
                 },
                 y: {
                     type: 'category',
                     labels: [],
                     offset: true,
-                    reverse: true
+                    reverse: true,
+                    grid: {
+                        display: false
+                    }
                 }
             },
             plugins: {
                 tooltip: {
                     callbacks: {
                         title: () => '',
-                        label: c => {
-                            const d = c.raw;
+                        label: ctx => {
+                            const d = ctx.raw;
                             return `Sklearn: ${d.y}, Transformer: ${d.x}, Count: ${d.v}`;
                         }
                     }
-                }
+                },
+                legend: {display: false}
             }
         }
     });
@@ -262,16 +278,22 @@
         });
     }
 
-    async function updateConfusionMatrix() {
+    async function updateConfusionMatrixChart() {
         const res = await fetch('/flairs/confusion-matrix');
         const json = await res.json();
         const labels = json.labels;
         const matrix = json.matrix;
 
         const matrixData = [];
+
         for (let i = 0; i < labels.length; i++) {
             for (let j = 0; j < labels.length; j++) {
-                matrixData.push({x: labels[j], y: labels[i], v: matrix[i][j]});
+                const count = matrix[i][j];
+                matrixData.push({
+                    x: labels[j], // transformer flair (column)
+                    y: labels[i], // sklearn flair (row)
+                    v: count
+                });
             }
         }
 
@@ -320,8 +342,10 @@
 
     setInterval(updateCharts, 5000);
     setInterval(updateFlairCharts, 10000);
+    setInterval(updateConfusionMatrixChart, 15000);
+
     updateFlairCharts();
-    updateConfusionMatrix();
+    updateConfusionMatrixChart();
 </script>
 </body>
 </html>
