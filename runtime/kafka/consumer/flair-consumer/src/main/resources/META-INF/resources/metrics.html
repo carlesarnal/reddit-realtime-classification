@@ -184,7 +184,7 @@
                 label: 'Confusion Matrix',
                 data: [],
                 backgroundColor(c) {
-                    const v = c.raw.v;
+                    const v = c.raw?.v ?? 0;
                     const alpha = Math.min(1, v / 10);
                     return `rgba(255, 99, 132, ${alpha})`;
                 },
