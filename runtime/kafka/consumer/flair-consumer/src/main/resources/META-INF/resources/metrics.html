@@ -184,21 +184,28 @@
                 label: 'Confusion Matrix',
                 data: [],
                 backgroundColor(c) {
-                    const v = c.dataset.data[c.dataIndex].v;
+                    const v = c.raw.v;
                     const alpha = Math.min(1, v / 10);
                     return `rgba(255, 99, 132, ${alpha})`;
                 },
-                width: ctx => ctx.chart.chartArea.width / ctx.chart.data.xLabels.length,
-                height: ctx => ctx.chart.chartArea.height / ctx.chart.data.yLabels.length
-            }],
-            xLabels: [],
-            yLabels: []
+                width: ctx => ctx.chart.chartArea.width / ctx.chart.options.scales.x.labels.length,
+                height: ctx => ctx.chart.chartArea.height / ctx.chart.options.scales.y.labels.length
+            }]
         },
         options: {
             responsive: true,
             scales: {
-                x: {type: 'category', labels: [], offset: true},
-                y: {type: 'category', labels: [], offset: true, reverse: true}
+                x: {
+                    type: 'category',
+                    labels: [],
+                    offset: true
+                },
+                y: {
+                    type: 'category',
+                    labels: [],
+                    offset: true,
+                    reverse: true
+                }
             },
             plugins: {
                 tooltip: {
@@ -268,8 +275,8 @@
             }
         }
 
-        confusionMatrixChart.data.xLabels = labels;
-        confusionMatrixChart.data.yLabels = labels;
+        confusionMatrixChart.options.scales.x.labels = labels;
+        confusionMatrixChart.options.scales.y.labels = labels;
         confusionMatrixChart.data.datasets[0].data = matrixData;
         confusionMatrixChart.update();
     }
