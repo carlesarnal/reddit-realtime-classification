@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Confusion Matrix Heatmap</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            font-size: 14px;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h2 {
+            font-size: 18px;
+        }
+        svg {
+            overflow: visible;
+        }
+    </style>
+</head>
+<body>
+<h2>Confusion Matrix Heatmap (D3.js)</h2>
+<svg id="heatmap" width="800" height="700"></svg>
+
+<script>
+    async function renderConfusionMatrix() {
+        const res = await fetch('/flairs/confusion-matrix');
+        const { labels, matrix } = await res.json();
+
+        const svg = d3.select("#heatmap"),
+            margin = { top: 100, right: 10, bottom: 100, left: 100 },
+            width = +svg.attr("width") - margin.left - margin.right,
+            height = +svg.attr("height") - margin.top - margin.bottom,
+            cellSize = Math.min(width / labels.length, height / labels.length);
+
+        const g = svg.append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const color = d3.scaleSequential(d3.interpolateBlues)
+            .domain([0, d3.max(matrix.flat())]);
+
+        // X and Y Scales
+        const x = d3.scaleBand().range([0, cellSize * labels.length]).domain(labels);
+        const y = d3.scaleBand().range([0, cellSize * labels.length]).domain(labels);
+
+        // Draw cells
+        for (let i = 0; i < labels.length; i++) {
+            for (let j = 0; j < labels.length; j++) {
+                const count = matrix[i][j];
+                g.append("rect")
+                    .attr("x", x(labels[j]))
+                    .attr("y", y(labels[i]))
+                    .attr("width", cellSize)
+                    .attr("height", cellSize)
+                    .attr("fill", color(count))
+                    .attr("stroke", "#fff");
+
+                if (count > 0) {
+                    g.append("text")
+                        .attr("x", x(labels[j]) + cellSize / 2)
+                        .attr("y", y(labels[i]) + cellSize / 2 + 4)
+                        .attr("text-anchor", "middle")
+                        .attr("font-size", "10px")
+                        .attr("fill", count > 5 ? "#fff" : "#000")
+                        .text(count);
+                }
+            }
+        }
+
+        // X Axis
+        g.append("g")
+            .attr("transform", `translate(0,${cellSize * labels.length})`)
+            .call(d3.axisBottom(x))
+            .selectAll("text")
+            .style("text-anchor", "end")
+            .attr("dx", "-0.8em")
+            .attr("dy", "0.15em")
+            .attr("transform", "rotate(-45)");
+
+        // Y Axis
+        g.append("g")
+            .call(d3.axisLeft(y));
+
+        // Axis labels
+        svg.append("text")
+            .attr("x", margin.left + (cellSize * labels.length) / 2)
+            .attr("y", margin.top + cellSize * labels.length + 50)
+            .attr("text-anchor", "middle")
+            .text("Transformer Flair Prediction");
+
+        svg.append("text")
+            .attr("transform", `translate(20, ${margin.top + (cellSize * labels.length) / 2}) rotate(-90)`)
+            .attr("text-anchor", "middle")
+            .text("Sklearn Flair Prediction");
+    }
+
+    renderConfusionMatrix();
+</script>
+</body>
+</html>

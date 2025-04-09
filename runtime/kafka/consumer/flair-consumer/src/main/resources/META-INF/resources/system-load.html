@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>System load</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            font-size: 14px;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h2 {
+            margin-top: 40px;
+            font-size: 18px;
+        }
+
+        .heatmap rect {
+            stroke: #fff;
+        }
+
+        .heatmap text {
+            font-size: 10px;
+            text-anchor: middle;
+        }
+
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<h1>Metrics Dashboard</h1>
+
+<!-- CPU Usage -->
+<h2>CPU Usage</h2>
+<canvas id="cpuChart"></canvas>
+
+<!-- System Load -->
+<h2>System Load (1 min avg)</h2>
+<canvas id="loadChart"></canvas>
+
+<!-- Kafka Consumer Stats -->
+<h2>Kafka Consumer Stats Over Time</h2>
+<canvas id="kafkaTrendsChart"></canvas>
+
+<!-- Heap Memory Usage -->
+<h2>Heap Memory Usage</h2>
+<canvas id="heapChart"></canvas>
+
+<!-- Thread States -->
+<h2>JVM Thread States</h2>
+<canvas id="threadChart"></canvas>
+
+<script>
+
+    async function fetchMetrics() {
+        const res = await fetch('/q/metrics');
+        return await res.text();
+    }
+
+    async function parseMetric(text, pattern) {
+        const match = text.match(pattern);
+        return match ? parseFloat(match[1]) : 0;
+    }
+
+    const cpuChart = new Chart(document.getElementById('cpuChart'), {
+        type: 'line',
+        data: {labels: [], datasets: [{label: 'CPU (%)', data: [], borderColor: 'blue'}]},
+        options: {scales: {y: {beginAtZero: true, max: 100}}}
+    });
+
+    const loadChart = new Chart(document.getElementById('loadChart'), {
+        type: 'line',
+        data: {labels: [], datasets: [{label: 'Load Avg (1m)', data: [], borderColor: 'purple'}]},
+        options: {scales: {y: {beginAtZero: true}}}
+    });
+
+    const kafkaChart = new Chart(document.getElementById('kafkaTrendsChart'), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {label: 'Consumed Records', data: [], borderColor: 'orange'},
+                {label: 'Consumption Rate', data: [], borderColor: 'green'},
+                {label: 'Fetch Latency (ms)', data: [], borderColor: 'red'}
+            ]
+        },
+        options: {responsive: true, scales: {y: {beginAtZero: true}}}
+    });
+
+    const heapChart = new Chart(document.getElementById('heapChart'), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {label: 'Heap Used (MB)', data: [], borderColor: 'steelblue'},
+                {label: 'Heap Max (MB)', data: [], borderColor: 'gray'}
+            ]
+        },
+        options: {scales: {y: {beginAtZero: true}}}
+    });
+
+    const threadChart = new Chart(document.getElementById('threadChart'), {
+        type: 'bar',
+        data: {
+            labels: ['Runnable', 'Blocked', 'Waiting', 'Timed Waiting'],
+            datasets: [{
+                label: 'Threads',
+                data: [0, 0, 0, 0],
+                backgroundColor: ['blue', 'red', 'orange', 'green']
+            }]
+        },
+        options: {indexAxis: 'y', scales: {x: {beginAtZero: true}}}
+    });
+
+    async function updateCharts() {
+        const text = await fetchMetrics();
+        const now = new Date().toLocaleTimeString();
+
+        const cpu = await parseMetric(text, /process_cpu_usage\s+(\d+\.?\d*)/);
+        const load = await parseMetric(text, /system_load_average_1m\s+(\d+\.?\d*)/);
+        const consumed = await parseMetric(text, /kafka_consumer_fetch_manager_records_consumed_total\{.*\}\s+(\d+\.?\d*)/);
+        const rate = await parseMetric(text, /kafka_consumer_fetch_manager_records_consumed_rate\{.*\}\s+(\d+\.?\d*)/);
+        const latency = await parseMetric(text, /kafka_consumer_fetch_manager_fetch_latency_avg\{.*\}\s+(\d+\.?\d*)/);
+        const heapUsed = await parseMetric(text, /jvm_memory_used_bytes\{.*PS Old Gen.*\}\s+(\d+\.?\d*)/);
+        const heapMax = await parseMetric(text, /jvm_memory_max_bytes\{.*PS Old Gen.*\}\s+(\d+\.?\d*)/);
+        const runnable = await parseMetric(text, /jvm_threads_states_threads\{state="runnable".*\}\s+(\d+\.?\d*)/);
+        const blocked = await parseMetric(text, /jvm_threads_states_threads\{state="blocked".*\}\s+(\d+\.?\d*)/);
+        const waiting = await parseMetric(text, /jvm_threads_states_threads\{state="waiting".*\}\s+(\d+\.?\d*)/);
+        const timed = await parseMetric(text, /jvm_threads_states_threads\{state="timed-waiting".*\}\s+(\d+\.?\d*)/);
+
+        cpuChart.data.labels.push(now);
+        loadChart.data.labels.push(now);
+        kafkaChart.data.labels.push(now);
+        heapChart.data.labels.push(now);
+
+        cpuChart.data.datasets[0].data.push(cpu * 100);
+        loadChart.data.datasets[0].data.push(load);
+        kafkaChart.data.datasets[0].data.push(consumed);
+        kafkaChart.data.datasets[1].data.push(rate);
+        kafkaChart.data.datasets[2].data.push(latency);
+        heapChart.data.datasets[0].data.push(heapUsed / 1024 / 1024);
+        heapChart.data.datasets[1].data.push(heapMax / 1024 / 1024);
+
+        threadChart.data.datasets[0].data = [runnable, blocked, waiting, timed];
+
+        const charts = [cpuChart, loadChart, kafkaChart, heapChart, threadChart];
+        charts.forEach(chart => {
+            if (chart.data.labels.length > 30) {
+                chart.data.labels.shift();
+                chart.data.datasets.forEach(ds => ds.data.shift());
+            }
+            chart.update();
+        });
+    }
+
+    setInterval(updateCharts, 5000);
+    updateCharts();
+</script>
