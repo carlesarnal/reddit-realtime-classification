@@ -5,12 +5,12 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import io.smallrye.reactive.messaging.kafka.KafkaRecord;
 import io.vertx.core.json.JsonObject;
-import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.jboss.logging.Logger;
 
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
@@ -28,6 +28,7 @@ public class BaseResource {
     protected static final Map<String, Integer> flairAgreementCount = new ConcurrentHashMap<>();
     protected static final Map<String, Map<String, Integer>> timelineCounts = new ConcurrentHashMap<>();
     protected static final Map<String, Map<String, Integer>> confusionMatrix = new ConcurrentHashMap<>();
+    protected static final Map<String, int[]> agreementTimeline = new ConcurrentHashMap<>();
     protected static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
             .withZone(ZoneId.of("UTC")); // Or your preferred time zone
 
@@ -66,6 +67,7 @@ public class BaseResource {
             updateTimelineCounts(flair, bucket);
             updateConfidenceDistribution(transformerConfidence, sklearnConfidence);
             updateModelUncertaintyZone(transformerConfidence, sklearnConfidence);
+            updateAgreementTimeline(transformerFlair, sklearnFlair, record.getTimestamp());
 
             record.ack();
         }
@@ -130,5 +132,16 @@ public class BaseResource {
         else {
             disagreement++;
         }
+    }
+
+    private void updateAgreementTimeline(String transformerFlair, String sklearnFlair, Instant recordCreation) {
+        String bucket = formatter.format(recordCreation);
+        agreementTimeline.computeIfAbsent(bucket, k -> new int[2]);
+
+        int[] stats = agreementTimeline.get(bucket);
+        if (transformerFlair.equals(sklearnFlair)) {
+            stats[0]++; // agreed
+        }
+        stats[1]++; // total
     }
 }
