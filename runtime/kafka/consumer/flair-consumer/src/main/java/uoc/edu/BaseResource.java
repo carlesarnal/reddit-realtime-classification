@@ -1,0 +1,133 @@
+package uoc.edu;
+
+import io.micrometer.core.instrument.MeterRegistry;
+import io.smallrye.mutiny.Uni;
+import io.smallrye.reactive.messaging.annotations.Blocking;
+import io.smallrye.reactive.messaging.kafka.KafkaRecord;
+import io.vertx.core.json.JsonObject;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.eclipse.microprofile.reactive.messaging.Incoming;
+import org.jboss.logging.Logger;
+
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+@ApplicationScoped
+public class BaseResource {
+
+    protected static final Logger LOG = Logger.getLogger(StatisticsResource.class);
+
+    protected final Map<String, Integer> transformerCounts = new ConcurrentHashMap<>();
+    protected final Map<String, Integer> sklearnCounts = new ConcurrentHashMap<>();
+    protected final Map<String, Double> transformerConfidenceSum = new ConcurrentHashMap<>();
+    protected final Map<String, Double> sklearnConfidenceSum = new ConcurrentHashMap<>();
+    protected final Map<String, Integer> flairAgreementCount = new ConcurrentHashMap<>();
+    protected final Map<String, Map<String, Integer>> timelineCounts = new ConcurrentHashMap<>();
+    protected final Map<String, Map<String, Integer>> confusionMatrix = new ConcurrentHashMap<>();
+    protected static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+            .withZone(ZoneId.of("UTC")); // Or your preferred time zone
+
+    protected final int BUCKET_COUNT = 10;
+    protected final int[] transformerBuckets = new int[BUCKET_COUNT];
+    protected final int[] sklearnBuckets = new int[BUCKET_COUNT];
+
+    protected int bothConfident = 0;
+    protected int bothUncertain = 0;
+    protected int disagreement = 0;
+
+    private static final double CONFIDENCE_THRESHOLD = 0.6;
+
+    @Inject
+    MeterRegistry registry;
+
+    @Incoming("kafka-predictions")
+    @Blocking
+    public Uni<Void> consume(KafkaRecord<String, String> record) {
+        LOG.infof("Received message: %s", record.getPayload());
+
+        try {
+            JsonObject json = new JsonObject(record.getPayload());
+            String transformerFlair = json.getString("transformer_flair", "Unknown");
+            double transformerConfidence = json.getDouble("transformer_confidence", 0.0);
+
+            String sklearnFlair = json.getString("sklearn_flair", "Unknown");
+            double sklearnConfidence = json.getDouble("sklearn_confidence", 0.0);
+
+            updateStatistics(transformerFlair, sklearnFlair, transformerConfidence, sklearnConfidence);
+            updateConfusionMatrix(transformerFlair, sklearnFlair);
+
+            // Update timeline counts. We use the transformer flair as the key.
+            String flair = json.getString("transformer_flair", "Unknown");
+            String bucket = formatter.format(record.getTimestamp());
+            updateTimelineCounts(flair, bucket);
+            updateConfidenceDistribution(transformerConfidence, sklearnConfidence);
+            updateModelUncertaintyZone(transformerConfidence, sklearnConfidence);
+
+            record.ack();
+        }
+        catch (Exception e) {
+            registry.counter("flair_message_errors_total").increment();
+            LOG.error("Failed to parse message", e);
+        }
+
+        return Uni.createFrom().nullItem();
+    }
+
+    private void updateStatistics(String transformerFlair, String sklearnFlair, double transformerConfidence, double sklearnConfidence) {
+        // Prometheus counters
+        registry.counter("flair_messages_total", "model", "transformer", "flair", transformerFlair).increment();
+        registry.counter("flair_messages_total", "model", "sklearn", "flair", sklearnFlair).increment();
+
+        // Update transformer stats
+        transformerCounts.merge(transformerFlair, 1, Integer::sum);
+        transformerConfidenceSum.merge(transformerFlair, transformerConfidence, Double::sum);
+
+        // Update sklearn stats
+        sklearnCounts.merge(sklearnFlair, 1, Integer::sum);
+        sklearnConfidenceSum.merge(sklearnFlair, sklearnConfidence, Double::sum);
+
+        // Track agreement
+        if (transformerFlair.equals(sklearnFlair)) {
+            flairAgreementCount.merge(transformerFlair, 1, Integer::sum);
+        }
+    }
+
+    private void updateConfusionMatrix(String transformerFlair, String sklearnFlair) {
+        confusionMatrix
+                .computeIfAbsent(transformerFlair, k -> new ConcurrentHashMap<>())
+                .merge(sklearnFlair, 1, Integer::sum);
+    }
+
+    private void updateTimelineCounts(String flair, String bucket) {
+        timelineCounts
+                .computeIfAbsent(bucket, k -> new ConcurrentHashMap<>())
+                .merge(flair, 1, Integer::sum);
+    }
+
+    private void updateConfidenceDistribution(double transformerConfidence, double sklearnConfidence) {
+        int tBucket = Math.min((int) (transformerConfidence * BUCKET_COUNT), BUCKET_COUNT - 1);
+        int sBucket = Math.min((int) (sklearnConfidence * BUCKET_COUNT), BUCKET_COUNT - 1);
+
+        synchronized (transformerBuckets) {
+            transformerBuckets[tBucket]++;
+        }
+        synchronized (sklearnBuckets) {
+            sklearnBuckets[sBucket]++;
+        }
+    }
+
+    private void updateModelUncertaintyZone(double transformerConfidence, double sklearnConfidence) {
+        if (transformerConfidence >= CONFIDENCE_THRESHOLD && sklearnConfidence >= CONFIDENCE_THRESHOLD) {
+            bothConfident++;
+        }
+        else if (transformerConfidence < CONFIDENCE_THRESHOLD && sklearnConfidence < CONFIDENCE_THRESHOLD) {
+            bothUncertain++;
+        }
+        else {
+            disagreement++;
+        }
+    }
+}
