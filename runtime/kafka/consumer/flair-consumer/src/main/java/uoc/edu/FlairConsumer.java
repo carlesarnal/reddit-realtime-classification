@@ -4,6 +4,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import io.smallrye.reactive.messaging.kafka.KafkaRecord;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -39,9 +40,11 @@ public class FlairConsumer {
     private final Map<String, Integer> flairAgreementCount = new ConcurrentHashMap<>();
     private final Map<String, Map<String, Integer>> confusionMatrix = new ConcurrentHashMap<>();
     private final Map<String, Map<String, Integer>> timelineCounts = new ConcurrentHashMap<>();
-
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
             .withZone(ZoneId.of("UTC")); // Or your preferred time zone
+    private final int BUCKET_COUNT = 10;
+    private final int[] transformerBuckets = new int[BUCKET_COUNT];
+    private final int[] sklearnBuckets = new int[BUCKET_COUNT];
 
     @Inject
     MeterRegistry registry;
@@ -80,10 +83,23 @@ public class FlairConsumer {
             // Update timeline counts. We use the transformer flair as the key.
             String flair = json.getString("transformer_flair", "Unknown");
             String bucket = formatter.format(record.getTimestamp());
-
             timelineCounts
                     .computeIfAbsent(bucket, k -> new ConcurrentHashMap<>())
                     .merge(flair, 1, Integer::sum);
+
+            // Update buckets for transformer and sklearn confidence
+            double transformer = json.getDouble("transformer_confidence", 0.0);
+            double sklearn = json.getDouble("sklearn_confidence", 0.0);
+
+            int tBucket = Math.min((int) (transformer * BUCKET_COUNT), BUCKET_COUNT - 1);
+            int sBucket = Math.min((int) (sklearn * BUCKET_COUNT), BUCKET_COUNT - 1);
+
+            synchronized (transformerBuckets) {
+                transformerBuckets[tBucket]++;
+            }
+            synchronized (sklearnBuckets) {
+                sklearnBuckets[sBucket]++;
+            }
 
             // Prometheus counters
             registry.counter("flair_messages_total", "model", "transformer", "flair", transformerFlair).increment();
@@ -180,6 +196,32 @@ public class FlairConsumer {
 
             response.put(bucket, flairCounts);
         }
+
+        return Response.ok(response).build();
+    }
+
+    @GET
+    @Path("/confidence-distribution")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getConfidenceDistribution() {
+        JsonObject response = new JsonObject();
+        JsonArray labels = new JsonArray();
+        JsonArray transformer = new JsonArray();
+        JsonArray sklearn = new JsonArray();
+
+        for (int i = 0; i < BUCKET_COUNT; i++) {
+            double lower = i / (double) BUCKET_COUNT;
+            double upper = (i + 1) / (double) BUCKET_COUNT;
+            String label = String.format("%.1f–%.1f", lower, upper);
+            labels.add(label);
+
+            transformer.add(transformerBuckets[i]);
+            sklearn.add(sklearnBuckets[i]);
+        }
+
+        response.put("labels", labels);
+        response.put("transformer", transformer);
+        response.put("sklearn", sklearn);
 
         return Response.ok(response).build();
     }
