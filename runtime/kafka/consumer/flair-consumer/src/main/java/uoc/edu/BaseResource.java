@@ -7,6 +7,7 @@ import io.smallrye.reactive.messaging.kafka.KafkaRecord;
 import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.jboss.logging.Logger;
 
@@ -15,28 +16,28 @@ import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-@ApplicationScoped
+@Singleton
 public class BaseResource {
 
     protected static final Logger LOG = Logger.getLogger(StatisticsResource.class);
 
-    protected final Map<String, Integer> transformerCounts = new ConcurrentHashMap<>();
-    protected final Map<String, Integer> sklearnCounts = new ConcurrentHashMap<>();
-    protected final Map<String, Double> transformerConfidenceSum = new ConcurrentHashMap<>();
-    protected final Map<String, Double> sklearnConfidenceSum = new ConcurrentHashMap<>();
-    protected final Map<String, Integer> flairAgreementCount = new ConcurrentHashMap<>();
-    protected final Map<String, Map<String, Integer>> timelineCounts = new ConcurrentHashMap<>();
-    protected final Map<String, Map<String, Integer>> confusionMatrix = new ConcurrentHashMap<>();
+    protected static final Map<String, Integer> transformerCounts = new ConcurrentHashMap<>();
+    protected static final Map<String, Integer> sklearnCounts = new ConcurrentHashMap<>();
+    protected static final Map<String, Double> transformerConfidenceSum = new ConcurrentHashMap<>();
+    protected static final Map<String, Double> sklearnConfidenceSum = new ConcurrentHashMap<>();
+    protected static final Map<String, Integer> flairAgreementCount = new ConcurrentHashMap<>();
+    protected static final Map<String, Map<String, Integer>> timelineCounts = new ConcurrentHashMap<>();
+    protected static final Map<String, Map<String, Integer>> confusionMatrix = new ConcurrentHashMap<>();
     protected static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
             .withZone(ZoneId.of("UTC")); // Or your preferred time zone
 
-    protected final int BUCKET_COUNT = 10;
-    protected final int[] transformerBuckets = new int[BUCKET_COUNT];
-    protected final int[] sklearnBuckets = new int[BUCKET_COUNT];
+    protected static final int BUCKET_COUNT = 10;
+    protected static final int[] transformerBuckets = new int[BUCKET_COUNT];
+    protected static final int[] sklearnBuckets = new int[BUCKET_COUNT];
 
-    protected int bothConfident = 0;
-    protected int bothUncertain = 0;
-    protected int disagreement = 0;
+    protected static int bothConfident = 0;
+    protected static int bothUncertain = 0;
+    protected static int disagreement = 0;
 
     private static final double CONFIDENCE_THRESHOLD = 0.6;
 

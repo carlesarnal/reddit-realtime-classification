@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Model Uncertainty Zone</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            font-size: 14px;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        canvas {
+            max-width: 400px;
+            margin: 40px auto;
+        }
+        h2 {
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+<h2>Model Uncertainty Zone</h2>
+<canvas id="uncertaintyChart"></canvas>
+
+<script>
+    async function fetchUncertaintyZones() {
+        const res = await fetch('/flairs/uncertainty-zones');
+        return await res.json();
+    }
+
+    async function renderUncertaintyChart() {
+        const data = await fetchUncertaintyZones();
+
+        const ctx = document.getElementById('uncertaintyChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Both Confident', 'Both Uncertain', 'Disagreement'],
+                datasets: [{
+                    data: [
+                        data.both_confident,
+                        data.both_uncertain,
+                        data.disagreement
+                    ],
+                    backgroundColor: ['seagreen', 'orange', 'crimson'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Confidence Agreement Zones'
+                    },
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+
+    renderUncertaintyChart();
+</script>
+</body>
+</html>
