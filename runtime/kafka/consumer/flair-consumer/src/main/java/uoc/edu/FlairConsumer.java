@@ -15,6 +15,8 @@ import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.jboss.logging.Logger;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,9 +36,12 @@ public class FlairConsumer {
     private final Map<String, Integer> sklearnCounts = new ConcurrentHashMap<>();
     private final Map<String, Double> transformerConfidenceSum = new ConcurrentHashMap<>();
     private final Map<String, Double> sklearnConfidenceSum = new ConcurrentHashMap<>();
-
     private final Map<String, Integer> flairAgreementCount = new ConcurrentHashMap<>();
     private final Map<String, Map<String, Integer>> confusionMatrix = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Integer>> timelineCounts = new ConcurrentHashMap<>();
+
+    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+            .withZone(ZoneId.of("UTC")); // Or your preferred time zone
 
     @Inject
     MeterRegistry registry;
@@ -67,9 +72,18 @@ public class FlairConsumer {
                 flairAgreementCount.merge(transformerFlair, 1, Integer::sum);
             }
 
+            // Update confusion matrix
             confusionMatrix
                     .computeIfAbsent(sklearnFlair, k -> new ConcurrentHashMap<>())
                     .merge(transformerFlair, 1, Integer::sum);
+
+            // Update timeline counts. We use the transformer flair as the key.
+            String flair = json.getString("transformer_flair", "Unknown");
+            String bucket = formatter.format(record.getTimestamp());
+
+            timelineCounts
+                    .computeIfAbsent(bucket, k -> new ConcurrentHashMap<>())
+                    .merge(flair, 1, Integer::sum);
 
             // Prometheus counters
             registry.counter("flair_messages_total", "model", "transformer", "flair", transformerFlair).increment();
@@ -146,6 +160,26 @@ public class FlairConsumer {
 
         response.put("labels", flairList);
         response.put("matrix", matrix);
+
+        return Response.ok(response).build();
+    }
+
+    @GET
+    @Path("/timeline")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getTimeline() {
+        JsonObject response = new JsonObject();
+
+        for (Map.Entry<String, Map<String, Integer>> entry : timelineCounts.entrySet()) {
+            String bucket = entry.getKey();
+            JsonObject flairCounts = new JsonObject();
+
+            for (Map.Entry<String, Integer> flairEntry : entry.getValue().entrySet()) {
+                flairCounts.put(flairEntry.getKey(), flairEntry.getValue());
+            }
+
+            response.put(bucket, flairCounts);
+        }
 
         return Response.ok(response).build();
     }

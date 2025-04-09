@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Flair Drift Over Time</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            font-size: 14px;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        canvas {
+            max-width: 100%;
+            margin-top: 40px;
+        }
+        h2 {
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+<h2>Flair Drift Over Time (Daily Buckets)</h2>
+<canvas id="flairDriftChart"></canvas>
+
+<script>
+    async function fetchTimeline() {
+        const res = await fetch('/flairs/timeline');
+        return await res.json();
+    }
+
+    async function renderFlairDriftChart() {
+        const raw = await fetchTimeline();
+        const sortedDays = Object.keys(raw).sort();
+        const flairSet = new Set();
+
+        sortedDays.forEach(day => {
+            Object.keys(raw[day]).forEach(flair => flairSet.add(flair));
+        });
+
+        const flairs = Array.from(flairSet);
+        const datasets = flairs.map(flair => {
+            return {
+                label: flair,
+                data: sortedDays.map(day => raw[day][flair] || 0),
+                fill: false,
+                borderWidth: 2
+            };
+        });
+
+        const ctx = document.getElementById('flairDriftChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: sortedDays,
+                datasets: datasets
+            },
+            options: {
+                responsive: true,
+                interaction: { mode: 'index', intersect: false },
+                stacked: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Flair Frequency per Day (Rolling View)'
+                    }
+                },
+                scales: {
+                    x: { title: { display: true, text: 'Date' } },
+                    y: { title: { display: true, text: 'Count' }, beginAtZero: true }
+                }
+            }
+        });
+    }
+
+    renderFlairDriftChart();
+</script>
+</body>
+</html>
