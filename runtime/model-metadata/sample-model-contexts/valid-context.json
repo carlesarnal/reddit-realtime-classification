@@ -1,0 +1,19 @@
+{
+  "name": "customer-churn-predictor",
+  "version": "1.0.0",
+  "framework": "scikit-learn",
+  "artifactUri": "s3://models/churn/random-forest-v1.pkl",
+  "inputSchema": "https://schemas.example.com/input-schema.json",
+  "outputSchema": "https://schemas.example.com/output-schema.json",
+  "hyperparameters": {
+    "n_estimators": 100,
+    "max_depth": 10
+  },
+  "metrics": {
+    "accuracy": 0.92,
+    "f1_score": 0.89,
+    "roc_auc": 0.93
+  },
+  "createdAt": "2024-10-15T10:00:00Z",
+  "createdBy": "ml-team@example.com"
+}

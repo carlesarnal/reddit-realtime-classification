@@ -1,0 +1,10 @@
+{
+  "artifactId": "kafka-predictions-value",
+  "firstVersion": {
+    "content": {
+      "content": "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"$id\":\"urn:reddit:predictions:value\",\"title\":\"KafkaPredictionsValue\",\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\",\"description\":\"Reddit post ID\"},\"title\":{\"type\":\"string\",\"description\":\"Original post title\"},\"content\":{\"type\":\"string\",\"description\":\"Cleaned post content\"},\"transformer_flair\":{\"type\":\"string\",\"description\":\"Flair predicted by Transformer model\"},\"transformer_confidence\":{\"type\":\"number\",\"minimum\":0,\"maximum\":1,\"description\":\"Transformer prediction confidence\"},\"sklearn_flair\":{\"type\":\"string\",\"description\":\"Flair predicted by scikit-learn model\"},\"sklearn_confidence\":{\"type\":\"number\",\"minimum\":0,\"maximum\":1,\"description\":\"scikit-learn prediction confidence\"}},\"required\":[\"id\",\"transformer_flair\",\"transformer_confidence\",\"sklearn_flair\",\"sklearn_confidence\"]}",
+      "contentType": "application/json"
+    }
+  },
+  "artifactType": "JSON"
+}

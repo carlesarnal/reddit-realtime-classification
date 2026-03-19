@@ -1,0 +1,9 @@
+{
+  "name": "fraud-detector",
+  "framework": "tensorflow",
+  "artifactUri": 12345,
+  "metrics": {
+    "accuracy": "high"
+  },
+  "createdAt": "not-a-date"
+}

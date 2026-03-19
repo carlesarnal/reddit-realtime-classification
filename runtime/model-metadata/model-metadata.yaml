@@ -1,23 +1,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: predictions-consumer
+  name: model-metadata
   namespace: reddit-realtime
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: predictions-consumer
+      app: model-metadata
   template:
     metadata:
       labels:
-        app: predictions-consumer
+        app: model-metadata
     spec:
       containers:
-        - name: predictions-consumer
-          image: quay.io/carlesarnal/predictions-publisher:sha-7bc39b5
+        - name: model-metadata
+          image: quay.io/carlesarnal/model-metadata:latest
           ports:
             - containerPort: 8080
+          env:
+            - name: APICURIO_REGISTRY_URL
+              value: "http://apicurio-registry.reddit-realtime.svc:8080"
           resources:
             requests:
               memory: "256Mi"
@@ -41,12 +44,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: predictions-consumer
+  name: model-metadata
   namespace: reddit-realtime
 spec:
   selector:
-    app: predictions-consumer
+    app: model-metadata
   ports:
     - protocol: TCP
-      port: 80
+      port: 8080
       targetPort: 8080

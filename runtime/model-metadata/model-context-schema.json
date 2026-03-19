@@ -1,0 +1,10 @@
+{
+  "artifactId": "model-context-schema",
+  "firstVersion": {
+    "content": {
+      "content": "{\r\n  \"$schema\": \"https:\/\/json-schema.org\/draft\/2020-12\/schema\",\r\n  \"$id\": \"urn:ml:model:sklearn-random-forest\",\r\n  \"title\": \"SklearnRandomForestModelMetadata\",\r\n  \"type\": \"object\",\r\n  \"properties\": {\r\n    \"name\": {\r\n      \"type\": \"string\",\r\n      \"description\": \"Name of the model\"\r\n    },\r\n    \"version\": {\r\n      \"type\": \"string\",\r\n      \"description\": \"Model version\"\r\n    },\r\n    \"framework\": {\r\n      \"type\": \"string\",\r\n      \"enum\": [\"scikit-learn\", \"xgboost\", \"tensorflow\", \"pytorch\"]\r\n    },\r\n    \"artifactUri\": {\r\n      \"type\": \"string\",\r\n      \"description\": \"URI to the binary model artifact (e.g., S3, GCS, Git)\"\r\n    },\r\n    \"inputSchema\": {\r\n      \"type\": \"string\",\r\n      \"description\": \"Reference to input schema (e.g., JSON Schema ID or URL)\"\r\n    },\r\n    \"outputSchema\": {\r\n      \"type\": \"string\",\r\n      \"description\": \"Reference to output schema\"\r\n    },\r\n    \"hyperparameters\": {\r\n      \"type\": \"object\",\r\n      \"additionalProperties\": true\r\n    },\r\n    \"metrics\": {\r\n      \"type\": \"object\",\r\n      \"properties\": {\r\n        \"accuracy\": { \"type\": \"number\" },\r\n        \"f1_score\": { \"type\": \"number\" },\r\n        \"roc_auc\": { \"type\": \"number\" }\r\n      },\r\n      \"additionalProperties\": true\r\n    },\r\n    \"createdAt\": {\r\n      \"type\": \"string\",\r\n      \"format\": \"date-time\"\r\n    },\r\n    \"createdBy\": {\r\n      \"type\": \"string\"\r\n    }\r\n  },\r\n  \"required\": [\"name\", \"version\", \"framework\", \"artifactUri\", \"createdAt\"]\r\n}",
+      "contentType": "application/json"
+    }
+  },
+  "artifactType": "JSON"
+}

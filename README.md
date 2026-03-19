@@ -1,161 +1,191 @@
 # Reddit Realtime Flair Classification
-This project is a real-time classification of Reddit posts using a pre-trained model. The model is trained on a dataset of Reddit posts from the r/AskEurope subreddit. The model is then used to classify new Reddit posts in real-time.
+
+A real-time distributed ML pipeline that classifies Reddit posts from r/AskEurope using dual-model inference (Transformer + scikit-learn), with Kafka streaming, Spark processing, and Kubernetes orchestration.
 
 ## Architecture
 
-The architecture of the project is as follows:
+```mermaid
+graph LR
+    subgraph Data Collection
+        A[Reddit API] -->|PRAW| B[Python Producer]
+    end
 
-1. **Data Collection**: Reddit posts are collected using the Reddit API. The posts are then sent to a Kafka topic.
-2. **Data Processing**: The posts are read from the Kafka topic and processed using Spark Structured Streaming. The processed data is then sent to another Kafka topic.
-3. **Model Inference**: The processed data is read from the Kafka topic and the model is used to classify the posts. The classified posts are then sent to another Kafka topic.
-4. **Dashboard**: The classified posts are consumed by a Quarkus application and displayed in a dashboard.
-5. **Monitoring**: The pipeline is monitored using Prometheus and Grafana.
-6. **Containerization**: The pipeline is containerized using Docker.
-7. **Orchestration**: The pipeline is orchestrated using Kubernetes.
+    subgraph Message Broker
+        B -->|JSON| C[Kafka Topic: reddit-stream]
+    end
 
-The pre-trained model can be found [here](./model).
+    subgraph ML Inference - Spark Structured Streaming
+        C --> D[Spark Driver]
+        D --> E[Transformer Model<br/>DistilBERT fine-tuned]
+        D --> F[scikit-learn Pipeline<br/>TF-IDF + LSA + Classifier]
+        E --> G[Dual Predictions + Confidence Scores]
+        F --> G
+    end
 
-If you want to train the model again, you can follow the [train_model.ipynb](./model/model_training.ipynb) notebook.
+    subgraph Results
+        G -->|JSON| H[Kafka Topic: kafka-predictions]
+    end
 
-In the same directory as the notebook, you will find the [data](./model/data) directory which contains the dataset used to train the model. You will a data collection script [collect_data.py](./model/data/collect_data.py) which can be used to collect data from the Reddit API.
+    subgraph Consumer & Monitoring
+        H --> I[Quarkus Consumer]
+        I --> J[REST API + Dashboards]
+        I --> K[Prometheus Metrics]
+    end
+```
+
+### Pipeline Flow
+
+1. **Producer** — Python script collects posts from Reddit API (r/AskEurope), cleans text (stopwords, lemmatization, URL normalization), and publishes to Kafka
+2. **Spark Inference** — Structured Streaming job reads from Kafka, applies two models in parallel:
+   - **Transformer**: Fine-tuned DistilBERT with label encoder (13 flair categories)
+   - **scikit-learn**: TF-IDF → Truncated SVD (LSA) → classifier pipeline
+3. **Consumer** — Quarkus app consumes predictions, tracks model agreement, confidence distributions, and exposes 7 monitoring dashboards
+
+### Key Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Dual-model inference | Transformer + sklearn | Compare deep learning vs classical ML in real-time; measure agreement rate |
+| Message broker | Kafka (Strimzi) | Native K8s operator, handles backpressure, exactly-once semantics |
+| Stream processing | Spark Structured Streaming | Micro-batch with checkpoint recovery; UDF-based model serving |
+| Consumer framework | Quarkus + SmallRye | Reactive messaging, low memory footprint, Prometheus-native |
+| Orchestration | Kubernetes | Strimzi for Kafka, Spark Operator for jobs, standard Deployments for services |
+
+### Monitoring Dashboards
+
+The Quarkus consumer serves 7 HTML dashboards:
+
+| Dashboard | Endpoint | What it shows |
+|-----------|----------|---------------|
+| Metrics Overview | `/metrics.html` | Flair counts, confidence, agreement rates |
+| Confusion Matrix | `/confusion-matrix.html` | Transformer vs sklearn prediction alignment |
+| Confidence Distribution | `/confidence-distribution.html` | Histogram of model confidence scores |
+| Agreement Over Time | `/agreement-over-time.html` | Model agreement rate trends |
+| Flair Timeline | `/flair-drift.html` | Flair distribution changes over time |
+| Uncertainty Zones | `/model-uncertainty.html` | Both confident / both uncertain / disagreement |
+| System Load | `/system-load.html` | Processing throughput and error rates |
+
+### Flair Categories
+
+The models classify posts into 13 categories: Work, Misc, Food, Personal, Meta, Sports, Travel, Politics, Culture, History, Education, Language, Foreign.
+
+## Project Structure
+
+```
+├── model/                          # Training artifacts
+│   ├── model_training.ipynb        # Jupyter notebook for model training
+│   ├── data_collection.py          # Reddit data collection script
+│   ├── cleaning.py                 # Text preprocessing utilities
+│   ├── reddit_classifier.pkl       # Trained sklearn classifier
+│   ├── vectorizer.pkl              # TF-IDF vectorizer
+│   └── LSA_topics.pkl              # Truncated SVD model
+├── runtime/
+│   ├── kafka/
+│   │   ├── kafka_cluster.yaml      # Strimzi Kafka cluster (KRaft mode)
+│   │   ├── producer/
+│   │   │   ├── reddit_posts_processor.py   # Reddit → Kafka producer
+│   │   │   ├── cleaning.py                 # Text cleaning pipeline
+│   │   │   ├── Dockerfile
+│   │   │   └── reddit_posts_processor.yaml # K8s Deployment
+│   │   └── consumer/
+│   │       ├── flair-consumer/             # Quarkus app
+│   │       │   ├── src/main/java/uoc/edu/
+│   │       │   │   ├── BaseResource.java              # Kafka consumer + metrics
+│   │       │   │   ├── StatisticsResource.java        # /flairs/statistics
+│   │       │   │   ├── ConfusionMatrixResource.java   # /flairs/confusion-matrix
+│   │       │   │   ├── ConfidenceDistributionResource.java
+│   │       │   │   ├── AgreementTimelineResource.java
+│   │       │   │   ├── ModelUncertaintyZoneResource.java
+│   │       │   │   └── TimelineResource.java
+│   │       │   └── src/main/resources/META-INF/resources/
+│   │       │       └── *.html              # 7 monitoring dashboards
+│   │       ├── flair_consumer.yaml         # K8s Deployment + Service
+│   │       └── outgoing_topic.yaml         # Kafka topic definition
+│   └── spark/
+│       ├── reddit_flair_spark_inference.py  # Dual-model Spark job
+│       ├── Dockerfile
+│       └── reddit_flair_spark_inference.yaml # SparkApplication CRD
+```
 
 ## Installation
 
-In this section we will go through the installation of the project. You'll find instructions on how to install the project on your local machine and how to deploy it on a Kubernetes cluster. In this example we will use Minikube to deploy the project on a local Kubernetes cluster.
+### Prerequisites
 
-## 1. Install Minikube & kubectl
-First, ensure that Minikube (for local Kubernetes) and kubectl (Kubernetes CLI) are installed. If you haven’t installed them yet, follow these steps:
-```
-# Linux
-curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
-sudo install minikube-linux-amd64 /usr/local/bin/minikube
+- Kubernetes cluster (Minikube, OpenShift, or cloud)
+- kubectl / oc CLI
+- Helm (for Spark Operator)
+- Reddit API credentials (stored as K8s Secret)
 
-# macOS
-brew install minikube
+### 1. Create Namespace & Install Operators
 
-# Windows (via Chocolatey)
-choco install minikube
-```
-Install kubectl (if not installed)
-```
-# Linux/macOS
-curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-chmod +x kubectl
-sudo mv kubectl /usr/local/bin/
-
-# Windows (via Chocolatey)
-choco install kubernetes-cli
-```
-Start Minikube
-```
-minikube start --memory=4g --cpus=2
-```
-
-### 1.2 Install Kafka
-
-#### Step 1: Create a Kubernetes Namespace for the deployment of the pipeline
-```
+```bash
 kubectl create namespace reddit-realtime
-```
-#### Step 2: Install Strimzi Kafka Operator
-```
+
+# Strimzi Kafka Operator
 kubectl apply -f https://strimzi.io/install/latest?namespace=reddit-realtime -n reddit-realtime
-```
-#### Step 3: Check if the pods are running
-```
-kubectl get pods -n reddit-realtime
-```
-You should see the following pods running:
-```
-NAME                                       READY   STATUS    RESTARTS   AGE
-strimzi-cluster-operator-xxxxxxx-xxxxx     1/1     Running   0          30s
+
+# Spark Operator
+helm repo add spark-operator https://kubeflow.github.io/spark-operator
+helm install spark-operator spark-operator/spark-operator --namespace spark-operator --create-namespace --wait
 ```
 
-### 1.3 Deploy a Kafka Cluster using Strimzi
+### 2. Deploy Kafka Cluster & Topics
 
-#### Step 1: Create a Kafka Cluster
-```
+```bash
 kubectl apply -f runtime/kafka/kafka_cluster.yaml
-```
-
-#### Step 2: Deploy the Kafka topics
-
-```
 kubectl apply -f runtime/kafka/producer/incoming_topic.yaml
 kubectl apply -f runtime/kafka/consumer/outgoing_topic.yaml
 ```
 
-### 1.4 Install Spark
+### 3. Create Reddit API Secret
 
-#### Step 1: Deploy Spark Operator
-
-```
-helm repo add spark-operator https://kubeflow.github.io/spark-operator
-helm repo update
-oc adm policy add-scc-to-user anyuid -n spark-operator -z spark-operator
-helm install spark-operator spark-operator/spark-operator --namespace spark-operator --create-namespace --wait
+```bash
+kubectl create secret generic reddit-api-credentials \
+  --from-literal=client-id=YOUR_CLIENT_ID \
+  --from-literal=client-secret=YOUR_CLIENT_SECRET \
+  -n reddit-realtime
 ```
 
-#### Step 2: Check if the pods are running
-```
-kubectl get pods -n spark-operator
-```
-Expected output:
-```
-NAME                                      READY   STATUS    RESTARTS   AGE
-spark-operator-xxxxxxx-xxxxx              1/1     Running   0          30s
-```
+### 4. Deploy Pipeline Components
 
-Once the pods are running, you can deploy the Spark application.
-
-### Step 3: Deploy the Spark Application
-
-```
+```bash
+# Spark inference job
 kubectl apply -f runtime/spark/reddit_flair_spark_inference.yaml
-```
 
-This Spark application will read from the Kafka topic, apply the model to the data and write the results to another Kafka topic. It uses a Spark Structured Streaming job to process the data in real-time. If you look at the [spark_application.yaml](./runtime/spark/reddit_flair_spark_inference.yaml) file, you will see that it specifies the Docker image to use for the Spark application. This Docker image is built using the [Dockerfile](./runtime/spark/Dockerfile) in the same directory.
-
-The commands used to build the Docker image and push it to Docker Hub are as follows:
-
-```
-docker build -t quay.io/carlesarnal/spark-inference:latest ./runtime/spark/
-docker push quay.io/carlesarnal/spark-inference:latest
-```
-
-You'll need to change the repository details in the commands above to match your own repository and you'll also need to change the Docker image in the [spark_application.yaml](./runtime/spark/reddit_flair_spark_inference.yaml) file to the one you just built.
-
-### Step 4: Deploy the Kafka Producer
-
-To deploy the Kafka producer, you can use the following command:
-    
-```
+# Reddit producer
 kubectl apply -f runtime/kafka/producer/reddit_posts_processor.yaml
-```
 
-This Kafka producer will read from the Reddit API and write the posts to the Kafka topic. It uses a Python script to read from the Reddit API and write to the Kafka topic. The Python script can be found [here](./runtime/kafka/reddit_posts_processor.py.
-
-This docker image is built using the [Dockerfile](runtime/kafka/producer/Dockerfile) in the same directory. The commands used to build the Docker image and push it to Docker Hub are as follows:
-
-```
-docker build -t quay.io/carlesarnal/reddit-posts-processor:latest ./runtime/kafka/producer/
-docker push quay.io/carlesarnal/reddit-posts-processor:latest
-```
-
-You'll need to change the repository details in the commands above to match your own repository and you'll also need to change the Docker image in the [reddit_posts_processor.yaml](runtime/kafka/producer/reddit_posts_processor.yaml) file to the one you just built.
-
-### Step 5: Deploy the Kafka Consumer
-
-```
+# Quarkus consumer
 kubectl apply -f runtime/kafka/consumer/flair_consumer.yaml
 ```
 
-With this simple command, the Quarkus application will start consuming the inference messages.
+### 5. Access Dashboards
 
-### Step 6: Metrics and monitoring
+```bash
+kubectl port-forward svc/predictions-consumer 8080:80 -n reddit-realtime
+# Open http://localhost:8080/metrics.html
+```
 
-The Quarkus app exposes metrics in the metrics.html page.
+## Model Training
 
+The pre-trained models are in [`./model`](./model). To retrain:
 
+1. Collect data: `python model/data_collection.py`
+2. Run training notebook: [`model/model_training.ipynb`](./model/model_training.ipynb)
+3. Rebuild Spark Docker image with new model artifacts
 
+## Building Docker Images
 
+```bash
+# Producer
+docker build -t quay.io/YOUR_USER/reddit-posts-processor:latest ./runtime/kafka/producer/
+docker push quay.io/YOUR_USER/reddit-posts-processor:latest
+
+# Spark inference
+docker build -t quay.io/YOUR_USER/spark-inference:latest ./runtime/spark/
+docker push quay.io/YOUR_USER/spark-inference:latest
+
+# Quarkus consumer
+cd runtime/kafka/consumer/flair-consumer
+./mvnw package -Dquarkus.container-image.build=true
+```

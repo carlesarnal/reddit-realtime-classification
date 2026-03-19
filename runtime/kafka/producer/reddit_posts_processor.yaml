@@ -32,3 +32,18 @@ spec:
                   key: client-secret
             - name: REDDIT_USER_AGENT
               value: "predictions"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            exec:
+              command:
+                - pgrep
+                - -f
+                - reddit_posts_processor
+            initialDelaySeconds: 30
+            periodSeconds: 30

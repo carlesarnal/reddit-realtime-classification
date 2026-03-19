@@ -15,9 +15,23 @@ spec:
     cores: 1
     memory: 3g
     serviceAccount: spark-operator-spark
+    resources:
+      requests:
+        memory: "3Gi"
+        cpu: "1"
+      limits:
+        memory: "4Gi"
+        cpu: "2"
   executor:
     cores: 1
     instances: 1
     memory: 3g
+    resources:
+      requests:
+        memory: "3Gi"
+        cpu: "1"
+      limits:
+        memory: "4Gi"
+        cpu: "2"
     labels:
       version: "3.5.0"
