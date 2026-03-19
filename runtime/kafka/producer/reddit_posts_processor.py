@@ -1,4 +1,5 @@
 import os
+import random
 import praw
 import json
 import time
@@ -80,6 +81,12 @@ flairs = ['Work', 'Misc', 'Food', 'Personal', 'Meta', 'Sports', 'Travel', 'Polit
 # Set of processed post IDs to avoid duplicates
 processed_ids = set()
 
+# Backpressure: exponential backoff with jitter on error
+INITIAL_BACKOFF = 1    # seconds
+MAX_BACKOFF = 300      # 5 minutes cap
+POLL_INTERVAL = 300    # 5 minutes between successful cycles
+consecutive_errors = 0
+
 print(" Streaming and cleaning new Reddit posts to Kafka...")
 
 while True:
@@ -155,9 +162,15 @@ while True:
                         msg = post_data  # capture for errback closure
                         producer.send(KAFKA_TOPIC, value=post_data, headers=headers).add_callback(on_send_success).add_errback(lambda excp, d=msg: on_send_error(excp, d))
 
-        # Wait before checking for new posts
-        time.sleep(300)  # Sleep for 5 minutes
+        # Successful cycle — reset backoff and wait before next poll
+        consecutive_errors = 0
+        time.sleep(POLL_INTERVAL)
 
     except Exception as e:
-        print(f" Error: {e}")
-        time.sleep(60)  # Retry after 1 minute if an error occurs
+        consecutive_errors += 1
+        backoff = min(INITIAL_BACKOFF * (2 ** consecutive_errors), MAX_BACKOFF)
+        jitter = random.uniform(0, backoff * 0.25)
+        wait_time = backoff + jitter
+        print(f" Error (attempt {consecutive_errors}): {e}")
+        print(f" Backing off for {wait_time:.1f}s (base={backoff}s, jitter={jitter:.1f}s)")
+        time.sleep(wait_time)

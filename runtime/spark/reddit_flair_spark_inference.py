@@ -136,6 +136,7 @@ df = spark.readStream \
     .option("subscribe", "reddit-stream") \
     .option("startingOffsets", "earliest") \
     .option("failOnDataLoss", "false") \
+    .option("maxOffsetsPerTrigger", "100") \
     .load()
 
 parsed_df = df.select(from_json(col("value").cast("string"), schema).alias("data")).select("data.*")

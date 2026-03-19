@@ -20,11 +20,17 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 @Path("/models")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class ModelController {
+
+    private static final Logger LOG = Logger.getLogger(ModelController.class.getName());
+    private static final int MAX_RETRIES = 3;
+    private static final long RETRY_DELAY_MS = 1000;
 
     final JsonValidator validator = new JsonValidator(Map.of(SchemaResolverConfig.REGISTRY_URL,
         System.getenv().getOrDefault("APICURIO_REGISTRY_URL", "http://apicurio-registry.reddit-realtime.svc:8080") + "/apis/registry/v3"), Optional.empty());
@@ -33,33 +39,49 @@ public class ModelController {
 
     @POST
     public Response registerModel(JsonNode newModel) {
-        try {
-            JsonMetadata jsonMetadata = new JsonMetadata(new ArtifactReferenceImpl.ArtifactReferenceBuilder()
-                    .groupId("mcp-models")
-                    .artifactId("model-context-schema")
-                    .build());
+        JsonMetadata jsonMetadata = new JsonMetadata(new ArtifactReferenceImpl.ArtifactReferenceBuilder()
+                .groupId("mcp-models")
+                .artifactId("model-context-schema")
+                .build());
 
-            JsonRecord record = new JsonRecord(newModel, jsonMetadata);
+        JsonRecord record = new JsonRecord(newModel, jsonMetadata);
 
-            JsonValidationResult validationResult = validator.validate(record);
+        // Retry with backoff when Registry is unavailable
+        for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+            try {
+                JsonValidationResult validationResult = validator.validate(record);
 
-            if (validationResult.success()) {
-                // Model is valid
-                String modelId = newModel.get("name").asText();
-                store.put(modelId, newModel);
-                return Response.status(Response.Status.CREATED)
-                        .entity(Map.of("modelId", modelId))
-                        .build();
-            }
-            else {
-                return Response.status(Response.Status.BAD_REQUEST)
-                        .entity(Map.of("error", "Model validation failed", "details", validationResult.getValidationErrors()))
-                        .build();
+                if (validationResult.success()) {
+                    String modelId = newModel.get("name").asText();
+                    store.put(modelId, newModel);
+                    return Response.status(Response.Status.CREATED)
+                            .entity(Map.of("modelId", modelId))
+                            .build();
+                } else {
+                    return Response.status(Response.Status.BAD_REQUEST)
+                            .entity(Map.of("error", "Model validation failed", "details", validationResult.getValidationErrors()))
+                            .build();
+                }
+            } catch (Exception e) {
+                LOG.log(Level.WARNING, "Registry validation attempt {0}/{1} failed: {2}",
+                        new Object[]{attempt, MAX_RETRIES, e.getMessage()});
+                if (attempt == MAX_RETRIES) {
+                    return Response.status(Response.Status.SERVICE_UNAVAILABLE)
+                            .entity(Map.of("error", "Schema registry unavailable after " + MAX_RETRIES + " retries",
+                                           "details", e.getMessage()))
+                            .build();
+                }
+                try {
+                    Thread.sleep(RETRY_DELAY_MS * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return Response.status(Response.Status.SERVICE_UNAVAILABLE)
+                            .entity(Map.of("error", "Interrupted during retry"))
+                            .build();
+                }
             }
         }
-        catch (Exception e) {
-            return Response.status(Response.Status.BAD_REQUEST).entity(Map.of("error", e.getMessage())).build();
-        }
+        return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
     }
 
     @GET
