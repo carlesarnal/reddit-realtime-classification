@@ -1,6 +1,7 @@
 package uoc.edu;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import io.smallrye.reactive.messaging.kafka.KafkaRecord;
@@ -15,6 +16,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Singleton
 public class BaseResource {
@@ -42,6 +44,9 @@ public class BaseResource {
 
     private static final double CONFIDENCE_THRESHOLD = 0.6;
 
+    protected static final AtomicLong totalMessages = new AtomicLong(0);
+    protected static final AtomicLong agreedMessages = new AtomicLong(0);
+
     @Inject
     MeterRegistry registry;
 
@@ -50,6 +55,7 @@ public class BaseResource {
     public Uni<Void> consume(KafkaRecord<String, String> record) {
         LOG.infof("Received message: %s", record.getPayload());
 
+        Timer.Sample sample = Timer.start(registry);
         try {
             JsonObject json = new JsonObject(record.getPayload());
             String transformerFlair = json.getString("transformer_flair", "Unknown");
@@ -69,10 +75,30 @@ public class BaseResource {
             updateModelUncertaintyZone(transformerConfidence, sklearnConfidence);
             updateAgreementTimeline(transformerFlair, sklearnFlair, record.getTimestamp());
 
+            // Pipeline stage counter
+            registry.counter("pipeline_messages_total", "stage", "consumed").increment();
+
+            // Per-model confidence gauges
+            registry.gauge("model_confidence_latest", io.micrometer.core.instrument.Tags.of("model", "transformer"), transformerConfidence);
+            registry.gauge("model_confidence_latest", io.micrometer.core.instrument.Tags.of("model", "sklearn"), sklearnConfidence);
+
+            // Model agreement gauge (rolling rate)
+            long total = totalMessages.incrementAndGet();
+            if (transformerFlair.equals(sklearnFlair)) {
+                agreedMessages.incrementAndGet();
+            }
+            registry.gauge("model_agreement_rate", this, obj -> {
+                long t = totalMessages.get();
+                return t > 0 ? (double) agreedMessages.get() / t : 0.0;
+            });
+
+            sample.stop(registry.timer("flair_processing_latency_seconds"));
+
             record.ack();
         }
         catch (Exception e) {
             registry.counter("flair_message_errors_total").increment();
+            sample.stop(registry.timer("flair_processing_latency_seconds", "status", "error"));
             LOG.error("Failed to parse message", e);
         }
 
