@@ -10,6 +10,24 @@ from kafka import KafkaProducer
 
 # Import the cleaning functions from cleaning.py
 import cleaning
+
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+
+# OpenTelemetry setup
+resource = Resource.create({"service.name": "reddit-producer"})
+provider = TracerProvider(resource=resource)
+otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "http://jaeger.reddit-realtime.svc:4317")
+exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
+provider.add_span_processor(BatchSpanProcessor(exporter))
+trace.set_tracer_provider(provider)
+tracer = trace.get_tracer("reddit-producer")
+propagator = TraceContextTextMapPropagator()
+
 # Reddit API Credentials
 reddit = praw.Reddit(
     client_id=os.environ["REDDIT_CLIENT_ID"],
@@ -59,7 +77,8 @@ while True:
         subreddit = reddit.subreddit("AskEurope")
 
         for flair in flairs:
-            new_posts = subreddit.search(query=f"flair:{flair}", time_filter="week", limit=200)
+            with tracer.start_as_current_span("reddit-api-search", attributes={"reddit.flair": flair}):
+                new_posts = subreddit.search(query=f"flair:{flair}", time_filter="week", limit=200)
 
             for submission in new_posts:
                 if submission.id not in processed_ids:
@@ -113,8 +132,17 @@ while True:
                         "content": data['content'].iloc[0]
                     }
 
-                    # Send data to Kafka
-                    producer.send(KAFKA_TOPIC, value=post_data).add_callback(on_send_success).add_errback(on_send_error)
+                    # Send data to Kafka with trace context
+                    with tracer.start_as_current_span("produce-reddit-post", attributes={
+                        "reddit.post.id": post_data["id"],
+                        "kafka.topic": KAFKA_TOPIC,
+                    }) as span:
+                        headers = []
+                        carrier = {}
+                        propagator.inject(carrier)
+                        for k, v in carrier.items():
+                            headers.append((k, v.encode("utf-8")))
+                        producer.send(KAFKA_TOPIC, value=post_data, headers=headers).add_callback(on_send_success).add_errback(on_send_error)
 
         # Wait before checking for new posts
         time.sleep(300)  # Sleep for 5 minutes

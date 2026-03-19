@@ -15,6 +15,9 @@ spec:
     cores: 1
     memory: 3g
     serviceAccount: spark-operator-spark
+    env:
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: "http://jaeger.reddit-realtime.svc:4317"
     resources:
       requests:
         memory: "3Gi"

@@ -32,6 +32,8 @@ spec:
                   key: client-secret
             - name: REDDIT_USER_AGENT
               value: "predictions"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://jaeger.reddit-realtime.svc:4317"
           resources:
             requests:
               memory: "256Mi"
