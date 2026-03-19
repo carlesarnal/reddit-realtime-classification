@@ -1,3 +1,4 @@
+import os
 import praw
 import json
 import time
@@ -11,13 +12,13 @@ from kafka import KafkaProducer
 import cleaning
 # Reddit API Credentials
 reddit = praw.Reddit(
-    client_id="zxFFHFUXZ3xkhPrkTrDaFg",
-    client_secret="jFowmw-Pda2y5EaI7E0X7VMxjDbPYQ",
-    user_agent="predictions"
+    client_id=os.environ["REDDIT_CLIENT_ID"],
+    client_secret=os.environ["REDDIT_CLIENT_SECRET"],
+    user_agent=os.environ.get("REDDIT_USER_AGENT", "predictions")
 )
 
 # Kafka Configuration
-KAFKA_BROKER = "reddit-posts-kafka-bootstrap.reddit-realtime.svc:9093"
+KAFKA_BROKER = os.environ.get("KAFKA_BROKER", "reddit-posts-kafka-bootstrap.reddit-realtime.svc:9093")
 KAFKA_TOPIC = "reddit-stream"
 
 # Initialize Kafka Producer
