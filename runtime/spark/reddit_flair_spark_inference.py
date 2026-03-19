@@ -56,54 +56,68 @@ flairs = label_encoder.classes_.tolist()
 # Define schema
 schema = StructType().add("id", StringType()).add("title", StringType()).add("content", StringType())
 
-# Define UDF
+# DLQ topic for failed inference
+DLQ_TOPIC = "reddit-inference-dlq"
+
+# Define UDF — returns JSON with a "__dlq" flag if inference fails
 def dual_model_prediction(row):
     content = row["content"]
+    post_id = row["id"] or "unknown"
 
-    transformer_flair = "Unknown"
-    transformer_conf = 0.0
-    sklearn_flair = "Unknown"
-    sklearn_conf = 0.0
+    try:
+        transformer_flair = "Unknown"
+        transformer_conf = 0.0
+        sklearn_flair = "Unknown"
+        sklearn_conf = 0.0
 
-    if content and content.strip():
-        with tracer.start_as_current_span("dual-model-inference", attributes={
-            "reddit.post.id": row["id"] or "unknown",
-        }) as span:
-            # Transformer inference
-            with tracer.start_as_current_span("transformer-inference"):
-                inputs = tokenizer(content, return_tensors="pt", truncation=True, padding=True, max_length=512)
-                inputs = {k: v.to("cpu") for k, v in inputs.items()}
-                with torch.no_grad():
-                    outputs = transformer_model(**inputs)
-                probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
-                pred_class = torch.argmax(probs, dim=1).item()
-                transformer_flair = flairs[pred_class]
-                transformer_conf = float(probs[0][pred_class])
+        if content and content.strip():
+            with tracer.start_as_current_span("dual-model-inference", attributes={
+                "reddit.post.id": post_id,
+            }) as span:
+                # Transformer inference
+                with tracer.start_as_current_span("transformer-inference"):
+                    inputs = tokenizer(content, return_tensors="pt", truncation=True, padding=True, max_length=512)
+                    inputs = {k: v.to("cpu") for k, v in inputs.items()}
+                    with torch.no_grad():
+                        outputs = transformer_model(**inputs)
+                    probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
+                    pred_class = torch.argmax(probs, dim=1).item()
+                    transformer_flair = flairs[pred_class]
+                    transformer_conf = float(probs[0][pred_class])
 
-            # Sklearn inference
-            with tracer.start_as_current_span("sklearn-inference"):
-                X = tfidf.transform([content])
-                X_reduced = tsvd.transform(X)
-                sk_probs = classifier.predict_proba(X_reduced)[0]
-                sk_class = sk_probs.argmax()
-                sklearn_flair = flairs[sk_class]
-                sklearn_conf = float(sk_probs[sk_class])
+                # Sklearn inference
+                with tracer.start_as_current_span("sklearn-inference"):
+                    X = tfidf.transform([content])
+                    X_reduced = tsvd.transform(X)
+                    sk_probs = classifier.predict_proba(X_reduced)[0]
+                    sk_class = sk_probs.argmax()
+                    sklearn_flair = flairs[sk_class]
+                    sklearn_conf = float(sk_probs[sk_class])
 
-            span.set_attribute("prediction.transformer_flair", transformer_flair)
-            span.set_attribute("prediction.transformer_confidence", transformer_conf)
-            span.set_attribute("prediction.sklearn_flair", sklearn_flair)
-            span.set_attribute("prediction.sklearn_confidence", sklearn_conf)
-            span.set_attribute("prediction.models_agree", transformer_flair == sklearn_flair)
+                span.set_attribute("prediction.transformer_flair", transformer_flair)
+                span.set_attribute("prediction.transformer_confidence", transformer_conf)
+                span.set_attribute("prediction.sklearn_flair", sklearn_flair)
+                span.set_attribute("prediction.sklearn_confidence", sklearn_conf)
+                span.set_attribute("prediction.models_agree", transformer_flair == sklearn_flair)
 
-    return json.dumps({
-        "id": row["id"],
-        "title": row["title"],
-        "content": content,
-        "transformer_flair": transformer_flair,
-        "transformer_confidence": transformer_conf,
-        "sklearn_flair": sklearn_flair,
-        "sklearn_confidence": sklearn_conf
-    })
+        return json.dumps({
+            "id": post_id,
+            "title": row["title"],
+            "content": content,
+            "transformer_flair": transformer_flair,
+            "transformer_confidence": transformer_conf,
+            "sklearn_flair": sklearn_flair,
+            "sklearn_confidence": sklearn_conf
+        })
+    except Exception as e:
+        # Return DLQ-flagged record so it can be routed to the DLQ topic
+        return json.dumps({
+            "__dlq": True,
+            "id": post_id,
+            "title": row["title"],
+            "content": content,
+            "error": str(e)
+        })
 
 predict_udf = udf(dual_model_prediction, StringType())
 
@@ -126,17 +140,34 @@ df = spark.readStream \
 
 parsed_df = df.select(from_json(col("value").cast("string"), schema).alias("data")).select("data.*")
 
+from pyspark.sql.functions import get_json_object
+
 # Apply dual inference
 predicted_df = parsed_df.withColumn("value", predict_udf(struct("id", "title", "content")))
 
-# Kafka sink
-query = predicted_df.select("value") \
+# Split successful predictions from DLQ records
+is_dlq = get_json_object(col("value"), "$.__dlq") == "true"
+success_df = predicted_df.filter(~is_dlq)
+dlq_df = predicted_df.filter(is_dlq)
+
+# Kafka sink — successful predictions
+query_success = success_df.select("value") \
     .writeStream \
     .format("kafka") \
     .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
     .option("topic", "kafka-predictions") \
-    .option("checkpointLocation", "/tmp/spark-checkpoints") \
+    .option("checkpointLocation", "/tmp/spark-checkpoints/predictions") \
     .trigger(processingTime="1 minute") \
     .start()
 
-query.awaitTermination()
+# Kafka sink — DLQ for failed inference
+query_dlq = dlq_df.select("value") \
+    .writeStream \
+    .format("kafka") \
+    .option("kafka.bootstrap.servers", kafka_bootstrap_servers) \
+    .option("topic", DLQ_TOPIC) \
+    .option("checkpointLocation", "/tmp/spark-checkpoints/dlq") \
+    .trigger(processingTime="1 minute") \
+    .start()
+
+spark.streams.awaitAnyTermination()

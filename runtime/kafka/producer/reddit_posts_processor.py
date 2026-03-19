@@ -58,11 +58,21 @@ except Exception as e:
 def get_date(created):
     return dt.datetime.fromtimestamp(created).isoformat()
 
+DLQ_FILE = os.environ.get("DLQ_FILE", "/tmp/producer-dlq.jsonl")
+
 def on_send_success(record_metadata):
     print(f" Message sent successfully to {record_metadata.topic} partition {record_metadata.partition} at offset {record_metadata.offset}")
 
-def on_send_error(excp):
+def on_send_error(excp, post_data=None):
     print(f" Message send failed: {excp}")
+    if post_data:
+        try:
+            with open(DLQ_FILE, "a") as f:
+                dlq_record = {"error": str(excp), "data": post_data, "timestamp": dt.datetime.now().isoformat()}
+                f.write(json.dumps(dlq_record) + "\n")
+            print(f" Failed message written to DLQ file: {DLQ_FILE}")
+        except Exception as dlq_err:
+            print(f" Failed to write to DLQ file: {dlq_err}")
 
 # List of categories to track
 flairs = ['Work', 'Misc', 'Food', 'Personal', 'Meta', 'Sports', 'Travel', 'Politics', 'Culture', 'History', 'Education', 'Language', 'Foreign']
@@ -142,7 +152,8 @@ while True:
                         propagator.inject(carrier)
                         for k, v in carrier.items():
                             headers.append((k, v.encode("utf-8")))
-                        producer.send(KAFKA_TOPIC, value=post_data, headers=headers).add_callback(on_send_success).add_errback(on_send_error)
+                        msg = post_data  # capture for errback closure
+                        producer.send(KAFKA_TOPIC, value=post_data, headers=headers).add_callback(on_send_success).add_errback(lambda excp, d=msg: on_send_error(excp, d))
 
         # Wait before checking for new posts
         time.sleep(300)  # Sleep for 5 minutes

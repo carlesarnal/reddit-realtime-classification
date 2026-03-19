@@ -1,0 +1,25 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: predictions-dlq
+  namespace: reddit-realtime
+  labels:
+    strimzi.io/cluster: reddit-posts
+spec:
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: 604800000  # 7 days
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: reddit-inference-dlq
+  namespace: reddit-realtime
+  labels:
+    strimzi.io/cluster: reddit-posts
+spec:
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: 604800000  # 7 days
