@@ -32,26 +32,37 @@ os.environ["HF_HUB_OFFLINE"] = "1"
 os.makedirs("/tmp/hf-cache", exist_ok=True)
 os.makedirs("/tmp/hf-home", exist_ok=True)
 
-# Load Transformer model
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+# Lazy-loaded models to avoid PySpark UDF serialization issues
+_models = {}
 
-model_dir = "/opt/spark/models/reddit_flairs"
-transformer_model = AutoModelForSequenceClassification.from_pretrained(model_dir)
-tokenizer = AutoTokenizer.from_pretrained(model_dir, local_files_only=True, use_fast=False)
-label_encoder = joblib.load(os.path.join(model_dir, "reddit_flair_label_encoder.joblib"))
+def _get_models():
+    if not _models:
+        from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-transformer_model.to("cpu")
-transformer_model.eval()
+        model_dir = "/opt/spark/models/reddit_flairs"
+        transformer_model = AutoModelForSequenceClassification.from_pretrained(model_dir)
+        tokenizer = AutoTokenizer.from_pretrained(model_dir, local_files_only=True, use_fast=False)
+        label_encoder = joblib.load(os.path.join(model_dir, "reddit_flair_label_encoder.joblib"))
 
-# Load scikit-learn pipeline
-with open("vectorizer.pkl", "rb") as f:
-    tfidf = pickle.load(f)
-with open("LSA_topics.pkl", "rb") as f:
-    tsvd = pickle.load(f)
-with open("reddit_classifier.pkl", "rb") as f:
-    classifier = pickle.load(f)
+        transformer_model.to("cpu")
+        transformer_model.eval()
 
-flairs = label_encoder.classes_.tolist()
+        with open("vectorizer.pkl", "rb") as f:
+            tfidf = pickle.load(f)
+        with open("LSA_topics.pkl", "rb") as f:
+            tsvd = pickle.load(f)
+        with open("reddit_classifier.pkl", "rb") as f:
+            classifier = pickle.load(f)
+
+        _models["transformer_model"] = transformer_model
+        _models["tokenizer"] = tokenizer
+        _models["label_encoder"] = label_encoder
+        _models["tfidf"] = tfidf
+        _models["tsvd"] = tsvd
+        _models["classifier"] = classifier
+        _models["flairs"] = label_encoder.classes_.tolist()
+
+    return _models
 
 # Define schema
 schema = StructType().add("id", StringType()).add("title", StringType()).add("content", StringType())
@@ -71,6 +82,14 @@ def dual_model_prediction(row):
         sklearn_conf = 0.0
 
         if content and content.strip():
+            m = _get_models()
+            tokenizer = m["tokenizer"]
+            transformer_model = m["transformer_model"]
+            tfidf = m["tfidf"]
+            tsvd = m["tsvd"]
+            classifier = m["classifier"]
+            flairs = m["flairs"]
+
             with tracer.start_as_current_span("dual-model-inference", attributes={
                 "reddit.post.id": post_id,
             }) as span:
