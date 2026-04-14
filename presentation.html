@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Real-time Content Classification on Kubernetes — OCXConf 2026</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0f1117;
+    --bg-card: #1a1d27;
+    --bg-code: #151820;
+    --text: #e4e7ef;
+    --text-dim: #8b90a0;
+    --accent: #4f8ff7;
+    --accent2: #a78bfa;
+    --accent3: #34d399;
+    --accent4: #fb923c;
+    --accent5: #f472b6;
+    --red: #ef4444;
+    --border: #2a2e3b;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ---- Slide container ---- */
+  .deck { position: relative; width: 100vw; height: 100vh; }
+
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    padding: 60px 80px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(40px);
+    transition: opacity 0.45s ease, transform 0.45s ease, visibility 0s 0.45s;
+  }
+  .slide.active {
+    opacity: 1; visibility: visible;
+    transform: translateX(0);
+    transition: opacity 0.45s ease, transform 0.45s ease, visibility 0s 0s;
+  }
+
+  /* ---- Typography ---- */
+  h1 { font-size: 3.2rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.03em; }
+  h2 { font-size: 2.4rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; margin-bottom: 24px; }
+  h3 { font-size: 1.35rem; font-weight: 600; color: var(--accent); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.95rem; }
+  p, li { font-size: 1.25rem; line-height: 1.65; color: var(--text-dim); }
+  li { margin-bottom: 10px; }
+  ul { list-style: none; padding-left: 0; }
+  ul li::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 14px; vertical-align: middle; }
+
+  .accent { color: var(--accent); }
+  .accent2 { color: var(--accent2); }
+  .accent3 { color: var(--accent3); }
+  .accent4 { color: var(--accent4); }
+  .accent5 { color: var(--accent5); }
+  strong { color: var(--text); font-weight: 600; }
+
+  code, .code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9em;
+    background: var(--bg-code);
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: var(--accent3);
+  }
+
+  /* ---- Code blocks ---- */
+  pre {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 32px;
+    font-size: 0.95rem;
+    line-height: 1.7;
+    overflow-x: auto;
+    max-width: 100%;
+    color: var(--text-dim);
+    text-align: left;
+  }
+  pre .kw { color: var(--accent2); }
+  pre .fn { color: var(--accent); }
+  pre .str { color: var(--accent3); }
+  pre .cmt { color: #555b6e; font-style: italic; }
+  pre .num { color: var(--accent4); }
+  pre .ann { color: var(--accent5); }
+
+  /* ---- Layout helpers ---- */
+  .content { max-width: 1200px; width: 100%; text-align: left; }
+  .content.center { text-align: center; }
+
+  .cols { display: grid; gap: 32px; }
+  .cols-2 { grid-template-columns: 1fr 1fr; }
+  .cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .badge-blue { background: rgba(79,143,247,0.15); color: var(--accent); }
+  .badge-green { background: rgba(52,211,153,0.15); color: var(--accent3); }
+  .badge-purple { background: rgba(167,139,250,0.15); color: var(--accent2); }
+  .badge-orange { background: rgba(251,146,60,0.15); color: var(--accent4); }
+
+  .tag-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+  /* ---- Architecture diagram ---- */
+  .arch-diagram {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: nowrap;
+    margin: 20px 0;
+  }
+  .arch-node {
+    background: var(--bg-card);
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 22px;
+    text-align: center;
+    min-width: 130px;
+    position: relative;
+  }
+  .arch-node.highlight { border-color: var(--accent); box-shadow: 0 0 20px rgba(79,143,247,0.15); }
+  .arch-node.highlight2 { border-color: var(--accent2); box-shadow: 0 0 20px rgba(167,139,250,0.15); }
+  .arch-node.highlight3 { border-color: var(--accent3); box-shadow: 0 0 20px rgba(52,211,153,0.15); }
+  .arch-node.highlight4 { border-color: var(--accent4); box-shadow: 0 0 20px rgba(251,146,60,0.15); }
+  .arch-node .node-title { font-size: 0.85rem; font-weight: 700; color: var(--text); }
+  .arch-node .node-sub { font-size: 0.72rem; color: var(--text-dim); margin-top: 4px; }
+  .arch-arrow {
+    font-size: 1.6rem;
+    color: var(--text-dim);
+    padding: 0 8px;
+    flex-shrink: 0;
+  }
+  .arch-branch {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .arch-branch .arch-arrow-down { color: var(--text-dim); font-size: 1.2rem; }
+
+  /* ---- Topic pill ---- */
+  .topic-pill {
+    background: rgba(79,143,247,0.1);
+    border: 1px solid rgba(79,143,247,0.3);
+    border-radius: 8px;
+    padding: 8px 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  /* ---- Flair pills ---- */
+  .flair-grid {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    justify-content: center; margin: 20px 0;
+  }
+  .flair-pill {
+    padding: 8px 18px; border-radius: 20px;
+    font-size: 0.85rem; font-weight: 600;
+    background: var(--bg-card); border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  /* ---- Schema block ---- */
+  .schema-block {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 26px;
+    color: var(--text-dim);
+    text-align: left;
+  }
+  .schema-block .key { color: var(--accent); }
+  .schema-block .type { color: var(--accent2); }
+
+  /* ---- Progress bar ---- */
+  .progress {
+    position: fixed; bottom: 0; left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width 0.4s ease;
+    z-index: 100;
+  }
+
+  /* ---- Slide counter ---- */
+  .slide-counter {
+    position: fixed; bottom: 16px; right: 28px;
+    font-size: 0.8rem; color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    z-index: 100;
+  }
+
+  /* ---- Title slide specifics ---- */
+  .title-slide h1 {
+    font-size: 3.6rem;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent2) 50%, var(--accent5) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 24px;
+  }
+  .title-slide .subtitle {
+    font-size: 1.4rem; color: var(--text-dim);
+    font-weight: 400; margin-bottom: 40px;
+  }
+  .title-meta {
+    font-size: 1rem; color: var(--text-dim);
+    display: flex; gap: 32px; align-items: center;
+  }
+  .title-meta span { display: flex; align-items: center; gap: 8px; }
+
+  /* ---- Section divider ---- */
+  .section-slide { text-align: center; }
+  .section-slide .section-num {
+    font-size: 5rem; font-weight: 800;
+    color: var(--accent);
+    opacity: 0.15;
+    line-height: 1;
+    margin-bottom: -10px;
+  }
+  .section-slide h2 { font-size: 2.8rem; margin-bottom: 12px; }
+  .section-slide p { font-size: 1.3rem; }
+
+  /* ---- VS comparison ---- */
+  .vs-divider {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; font-weight: 800; color: var(--text-dim);
+    padding: 8px 0;
+  }
+
+  /* ---- Dashboard preview cards ---- */
+  .dash-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 20px; }
+  .dash-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px; text-align: center;
+  }
+  .dash-card .dash-icon { font-size: 2rem; margin-bottom: 12px; }
+  .dash-card .dash-title { font-size: 0.95rem; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .dash-card .dash-desc { font-size: 0.8rem; color: var(--text-dim); }
+
+  /* ---- Takeaway cards ---- */
+  .takeaway-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .takeaway-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 32px;
+  }
+  .takeaway-card .num {
+    font-size: 2.4rem; font-weight: 800; line-height: 1;
+    margin-bottom: 12px;
+  }
+  .takeaway-card p { font-size: 1.1rem; }
+
+  /* ---- Animated flow dots ---- */
+  @keyframes flowPulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+  .flow-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: flowPulse 1.5s ease-in-out infinite;
+  }
+  .flow-dot:nth-child(2) { animation-delay: 0.3s; }
+  .flow-dot:nth-child(3) { animation-delay: 0.6s; }
+
+  /* ---- Tech logo row ---- */
+  .tech-row {
+    display: flex; gap: 24px; flex-wrap: wrap;
+    justify-content: center; align-items: center;
+    margin: 24px 0;
+  }
+  .tech-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 24px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* ---- Speaker notes (hidden by default, toggle with 'n') ---- */
+  .speaker-notes {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(0,0,0,0.92);
+    border-top: 1px solid var(--border);
+    padding: 20px 40px;
+    font-size: 0.9rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+    z-index: 200;
+  }
+  .speaker-notes.visible { display: block; }
+  .speaker-notes strong { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+<!-- =========== SLIDE 0: TITLE =========== -->
+<div class="slide title-slide" data-notes="Introduce yourself. Frame the problem: real-time classification is critical across industries. This talk: a practical, fully open-source pipeline running on Kubernetes.">
+  <div class="content center">
+    <h1>Real-time Content Classification<br>on Kubernetes</h1>
+    <p class="subtitle">with Open Source</p>
+    <div class="title-meta">
+      <span><strong>Carles Arnal</strong></span>
+      <span>Principal Software Engineer, IBM</span>
+      <span>OCXConf 2026</span>
+    </div>
+  </div>
+</div>
+
+<!-- =========== SLIDE 1: THE PROBLEM =========== -->
+<div class="slide" data-notes="Real-time classification is everywhere: fraud detection, content moderation, cybersecurity, social media analytics. We need to classify content as it arrives, not in batch overnight. Our case study: Reddit posts.">
+  <div class="content">
+    <h3>The Problem</h3>
+    <h2>Classifying content in real-time<br>is a common and critical need</h2>
+    <div class="cols cols-3" style="margin-top: 36px;">
+      <div class="card">
+        <p style="font-size:2rem; margin-bottom:12px;">$</p>
+        <p><strong>Finance</strong></p>
+        <p style="font-size:1rem;">Fraud detection on transactions as they happen</p>
+      </div>
+      <div class="card">
+        <p style="font-size:2rem; margin-bottom:12px;">#</p>
+        <p><strong>Social Media</strong></p>
+        <p style="font-size:1rem;">Content moderation, trend detection, sentiment</p>
+      </div>
+      <div class="card">
+        <p style="font-size:2rem; margin-bottom:12px;">!</p>
+        <p><strong>Cybersecurity</strong></p>
+        <p style="font-size:1rem;">Threat classification and anomaly detection</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =========== SLIDE 2: CASE STUDY =========== -->
+<div class="slide" data-notes="We classify Reddit posts from r/AskEurope into 13 flair categories. The entire stack is open source and runs on any Kubernetes cluster.">
+  <div class="content center">
+    <h3>Case Study</h3>
+    <h2>r/AskEurope &mdash; 13 Flair Categories</h2>
+    <p style="margin-bottom: 28px;">Classifying posts in real-time using a <strong>100% open source</strong> stack</p>
+    <div class="flair-grid">
+      <span class="flair-pill" style="border-color: #4f8ff7;">Work</span>
+      <span class="flair-pill" style="border-color: #a78bfa;">Food</span>
+      <span class="flair-pill" style="border-color: #34d399;">Travel</span>
+      <span class="flair-pill" style="border-color: #fb923c;">Politics</span>
+      <span class="flair-pill" style="border-color: #f472b6;">Culture</span>
+      <span class="flair-pill" style="border-color: #60a5fa;">History</span>
+      <span class="flair-pill" style="border-color: #c084fc;">Education</span>
+      <span class="flair-pill" style="border-color: #fbbf24;">Sports</span>
+      <span class="flair-pill" style="border-color: #f87171;">Personal</span>
+      <span class="flair-pill" style="border-color: #2dd4bf;">Language</span>
+      <span class="flair-pill" style="border-color: #818cf8;">Foreign</span>
+      <span class="flair-pill" style="border-color: #94a3b8;">Meta</span>
+      <span class="flair-pill" style="border-color: #a3a3a3;">Misc</span>
+    </div>
+  </div>
+</div>
+
+<!-- =========== SLIDE 3: ARCHITECTURE =========== -->
+<div class="slide" data-notes="Walk through the architecture. Reddit API feeds the producer, which publishes to Kafka. Apicurio Registry enforces schemas. Spark runs dual inference. Quarkus consumer serves dashboards.">
+  <div class="content">
+    <h3>Architecture</h3>
+    <h2>End-to-end pipeline</h2>
+
+    <div class="arch-diagram" style="margin-top: 36px;">
+      <div class="arch-node highlight4">
+        <div class="node-title">Reddit API</div>
+        <div class="node-sub">r/AskEurope</div>
+      </div>
+      <div class="arch-arrow"><span class="flow-dot"></span> <span class="flow-dot"></span> <span class="flow-dot"></span></div>
+      <div class="arch-node">
+        <div class="node-title">Kafka Producer</div>
+        <div class="node-sub">Python + PRAW</div>
+      </div>
+      <div class="arch-arrow"><span class="flow-dot"></span> <span class="flow-dot"></span> <span class="flow-dot"></span></div>
+
+      <div class="arch-branch">
+        <div class="topic-pill">reddit-stream</div>
+        <div class="arch-arrow-down" style="font-size:0.7rem; color:var(--accent3);">validated by</div>
+        <div class="arch-node highlight3" style="min-width: 110px; padding: 10px 14px;">
+          <div class="node-title" style="font-size:0.75rem;">Apicurio Registry</div>
+          <div class="node-sub" style="font-size:0.65rem;">Schema Governance</div>
+        </div>
+      </div>
+
+      <div class="arch-arrow"><span class="flow-dot"></span> <span class="flow-dot"></span> <span class="flow-dot"></span></div>
+      <div class="arch-node highlight">
+        <div class="node-title">Spark Streaming</div>
+        <div class="node-sub">Dual ML Inference</div>
+      </div>
+      <div class="arch-arrow"><span class="flow-dot"></span> <span class="flow-dot"></span> <span class="flow-dot"></span></div>
+      <div class="topic-pill">kafka-predictions</div>
+      <div class="arch-arrow"><span class="flow-dot"></span> <span class="flow-dot"></span> <span class="flow-dot"></span></div>
+      <div class="arch-node highlight2">
+        <div class="node-title">Quarkus Consumer</div>
+        <div class="node-sub">REST + Dashboard</div>
+      </div>
+    </div>
+
+    <div class="tech-row" style="margin-top: 40px;">
+      <div class="tech-item">Strimzi (Kafka)</div>
+      <div class="tech-item">Spark Operator</div>
+      <div class="tech-item">Quarkus</div>
+      <div class="tech-item">Apicurio Registry</div>
+      <div class="tech-item">PyTorch</div>
+      <div class="tech-item">scikit-learn</div>
+      <div class="tech-item">Kubernetes</div>
+    </div>
+  </div>
+</div>
+
+<!-- =========== SLIDE 4: SECTION - ML MODELS =========== -->
+<div class="slide section-slide" data-notes="Transition to the ML models section.">
+  <div class="content center">
+    <div class="section-num">02</div>
+    <h2>The ML Models</h2>
+    <p>Two model families, one prediction per post</p>
+  </div>
+</div>
+
+<!-- =========== SLIDE 5: DUAL MODEL APPROACH =========== -->
+<div class="slide" data-notes="The transformer is a fine-tuned DistilRoBERTa. The sklearn model uses TF-IDF + LSA + Logistic Regression. Running two different model families lets us measure agreement and find uncertain predictions without ground-truth labels.">
+  <div class="content">
+    <h3>Dual Model Inference</h3>
+    <h2>Why run two models?</h2>
+    <div class="cols cols-2" style="margin-top: 32px;">
+      <div class="card">
+        <div class="badge badge-blue" style="margin-bottom: 16px;">Transformer</div>
+        <p><strong>DistilRoBERTa</strong></p>
+        <ul style="margin-top: 12px;">
+          <li style="font-size:1.05rem;">6 layers, 12 attention heads</li>
+          <li style="font-size:1.05rem;">768 hidden dimensions</li>
+          <li style="font-size:1.05rem;">Fine-tuned on labeled r/AskEurope posts</li>
+          <li style="font-size:1.05rem;">Captures <strong>semantic context</strong></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="badge badge-purple" style="margin-bottom: 16px;">scikit-learn</div>
+        <p><strong>TF-IDF + LSA + Logistic Regression</strong></p>
+        <ul style="margin-top: 12px;">
+          <li style="font-size:1.05rem;">TF-IDF vectorization</li>
+          <li style="font-size:1.05rem;">LSA dimensionality reduction</li>
+          <li style="font-size:1.05rem;">Logistic Regression classifier</li>
+          <li style="font-size:1.05rem;">Captures <strong>term frequency patterns</strong></li>
+        </ul>
+      </div>
+    </div>
+    <div style="margin-top: 28px; text-align: center;">
+      <p style="font-size:1.15rem;"><strong>Agreement rate</strong> between models = proxy for prediction <strong class="accent">reliability</strong></p>
+      <p style="font-size:1rem;">No ground-truth labels needed in production</p>
+    </div>
+  </div>
+</div>
+
+<!-- =========== SLIDE 6: SECTION - SCHEMA GOVERNANCE =========== -->
+<div class="slide section-slide" data-notes="Transition to schema governance.">
+  <div class="content center">
+    <div class="section-num">03</div>
+    <h2>Schema Governance</h2>
+    <p>Enforcing data contracts with Apicurio Registry</p>
+  </div>
+</div>
+
+<!-- =========== SLIDE 7: APICURIO REGISTRY =========== -->
+<div class="slide" data-notes="Before data flows, we define contracts. Apicurio Registry stores JSON Schemas for our Kafka topics. This prevents schema drift. Supports backward compatibility rules.">
+  <div class="content">
+    <h3>Apicurio Registry</h3>
+    <h2>Data contracts between pipeline components</h2>
+    <div class="cols cols-2" style="margin-top: 28px;">
+      <div class="card">
+        <div class="badge badge-green" style="margin-bottom: 16px;">reddit-stream-value</div>
+        <p style="font-size:0.95rem; margin-bottom:16px;"><strong>Producer output schema</strong></p>
+        <div class="schema-block">
+{<br>
+&nbsp;&nbsp;<span class="key">"id"</span>: <span class="type">string</span> &mdash; Reddit post ID<br>
+&nbsp;&nbsp;<span class="key">"content"</span>: <span class="type">string</span> &mdash; Cleaned text<br>
+}
+        </div>
+      </div>
+      <div class="card">
+        <div class="badge badge-orange" style="margin-bottom: 16px;">kafka-predictions-value</div>
+        <p style="font-size:0.95rem; margin-bottom:16px;"><strong>Inference output schema</strong></p>
+        <div class="schema-block">
+{<br>
+&nbsp;&nbsp;<span class="key">"id"</span>: <span class="type">string</span><br>
+&nbsp;&nbsp;<span class="key">"transformer_flair"</span>: <span class="type">string</span><br>
+&nbsp;&nbsp;<span class="key">"transformer_confidence"</span>: <span class="type">number</span><br>
+&nbsp;&nbsp;<span class="key">"sklearn_flair"</span>: <span class="type">string</span><br>
+&nbsp;&nbsp;<span class="key">"sklearn_confidence"</span>: <span class="type">number</span><br>
+}
+        </div>
+      </div>
+    </div>
+    <div style="margin-top: 24px; text-align:center;">
+      <p style="font-size:1.1rem;">Prevents <strong>schema drift</strong> &mdash; if the producer format changes, consumers won't silently break</p>
+      <p style="font-size:0.95rem;">Supports <strong class="accent3">backward compatibility</strong> rules for safe schema evolution</p>
+    </div>
+  </div>
+</div>
+
+<!-- =========== SLIDE 8: SECTION - LIVE DEMO =========== -->
+<div class="slide section-slide" data-notes="Transition to live demo. Everything except the producer is already running.">
+  <div class="content center">
+    <div class="section-num">04</div>
+    <h2>Live Demo</h2>
+    <p>Starting the pipeline and watching data flow</p>
+  </div>
+</div>
+
+<!-- =========== SLIDE 9: PIPELINE STATE =========== -->
+<div class="slide" data-notes="Show kubectl get pods. Kafka, Apicurio, Spark, and Quarkus consumer are already running. The producer is the missing piece. Deploy it now.">
+  <div class="content">
+    <h3>Pre-deployed state</h3>
+    <h2>The pipeline is warm and waiting</h2>
+    <pre style="margin-top: 28px; font-size: 0.88rem;">
+<span class="cmt">$ kubectl get pods -n reddit-realtime</span>
+
+NAME                                        READY   STATUS    AGE
+strimzi-cluster-operator-xxxxx              <span class="str">1/1     Running</span>   15m
+reddit-posts-dual-role-0                    <span class="str">1/1     Running</span>   12m
+apicurio-registry-xxxxx                     <span class="str">1/1     Running</span>   11m
+predictions-consumer-xxxxx                  <span class="str">1/1     Running</span>   10m
+
+<span class="cmt">$ kubectl get pods -n spark-operator</span>
+
+spark-operator-xxxxx                        <span class="str">1/1     Running</span>   14m
+spark-reddit-inference-driver               <span class="str">1/1     Running</span>   10m
+    </pre>
+    <div style="text-align: center; margin-top: 24px;">
+      <p style="font-size: 1.2rem;">Everything is running. Now let's start the <strong class="accent4">producer</strong>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- =========== SLIDE 10: START PRODUCER =========== -->
+<div class="slide" data-notes="Deploy the producer with kubectl apply. Then tail the logs. Watch for posts being fetched from Reddit and sent to Kafka. Then curl the statistics endpoint.">
+  <div class="content">
+    <h3>Start data flow</h3>
+    <h2>Deploy the Kafka producer</h2>
+    <pre style="margin-top: 24px;">
+<span class="cmt"># Deploy the producer</span>
+<span class="fn">$</span> kubectl apply -f runtime/kafka/producer/reddit_posts_processor.yaml
+
+<span class="cmt"># Watch the logs</span>
+<span class="fn">$</span> kubectl logs -n reddit-realtime -f deployment/kafka-producer
+
+<span class="str">Kafka producer connected successfully!</span>
+<span class="str">Streaming and cleaning Reddit posts to Kafka...</span>
+<span class="str">Sent to reddit-stream partition 0 offset 0</span>
+<span class="str">Sent to reddit-stream partition 0 offset 1</span>
+<span class="str">...</span>
+    </pre>
+    <pre style="margin-top: 20px;">
+<span class="cmt"># Verify predictions are flowing</span>
+<span class="fn">$</span> curl -s http://localhost:8080/flairs/statistics | python3 -m json.tool
+    </pre>
+  </div>
+</div>
+
+<!-- =========== SLIDE 11: SECTION - CODE =========== -->
+<div class="slide section-slide" data-notes="Transition to code walkthrough. Data is flowing in the background.">
+  <div class="content center">
+    <div class="section-num">05</div>
+    <h2>Code Walkthrough</h2>
+    <p>The key pieces while data flows in the background</p>
+  </div>
+</div>
+
+<!-- =========== SLIDE 12: PRODUCER CODE =========== -->
+<div class="slide" data-notes="Walk through the producer code. Simple loop: fetch Reddit posts by flair, clean text with NLP, publish to Kafka.">
+  <div class="content">
+    <h3>Producer</h3>
+    <h2><code>reddit_posts_processor.py</code></h2>
+    <pre style="margin-top: 24px; font-size: 0.82rem;">
+<span class="kw">for</span> flair <span class="kw">in</span> flairs:
+    new_posts = subreddit.search(query=<span class="str">f"flair:{flair}"</span>, time_filter=<span class="str">"week"</span>, limit=<span class="num">200</span>)
+
+    <span class="kw">for</span> submission <span class="kw">in</span> new_posts:
+        <span class="cmt"># Extract post data, domain, comments</span>
+        post_data = { <span class="str">"id"</span>: submission.id, <span class="str">"title"</span>: submission.title, ... }
+
+        <span class="cmt"># Clean text with NLP pipeline (stopwords, lemmatization, URL removal)</span>
+        data = pd.DataFrame(post_data)
+        cleaning.clean_text(data, <span class="str">'title'</span>)
+        cleaning.clean_text(data, <span class="str">'body'</span>)
+        cleaning.clean_text(data, <span class="str">'comments'</span>)
+        data[<span class="str">'content'</span>] = data.title + <span class="str">' '</span> + data.body + <span class="str">' '</span> + data.comments + <span class="str">' '</span> + data.domain
+
+        <span class="cmt"># Send to Kafka</span>
+        producer.send(<span class="str">"reddit-stream"</span>, value=msg)
+    </pre>
+  </div>
+</div>
+
+<!-- =========== SLIDE 13: SPARK CODE =========== -->
+<div class="slide" data-notes="Walk through the Spark UDF. Both models are lazy-loaded to avoid serialization issues. Transformer: tokenize, forward pass, softmax. sklearn: TF-IDF, LSA, predict.">
+  <div class="content">
+    <h3>Spark Inference</h3>
+    <h2><code>reddit_flair_spark_inference.py</code></h2>
+    <pre style="margin-top: 24px; font-size: 0.82rem;">
+<span class="kw">def</span> <span class="fn">dual_model_prediction</span>(row):
+    m = _get_models()   <span class="cmt"># lazy-loaded once per executor</span>
+
+    <span class="cmt"># Transformer inference (DistilBERT)</span>
+    inputs = m[<span class="str">"tokenizer"</span>](content, return_tensors=<span class="str">"pt"</span>, truncation=<span class="kw">True</span>, max_length=<span class="num">512</span>)
+    <span class="kw">with</span> torch.no_grad():
+        outputs = m[<span class="str">"transformer_model"</span>](**inputs)
+    probs = torch.nn.functional.softmax(outputs.logits, dim=-<span class="num">1</span>)
+    transformer_flair = m[<span class="str">"flairs"</span>][torch.argmax(probs, dim=<span class="num">1</span>).item()]
+
+    <span class="cmt"># sklearn inference (TF-IDF + LSA + Logistic Regression)</span>
+    X = m[<span class="str">"tfidf"</span>].transform([content])
+    X_reduced = m[<span class="str">"tsvd"</span>].transform(X)
+    sk_probs = m[<span class="str">"classifier"</span>].predict_proba(X_reduced)[<span class="num">0</span>]
+    sklearn_flair = m[<span class="str">"flairs"</span>][sk_probs.argmax()]
+
+    <span class="kw">return</span> json.dumps({ <span class="str">"transformer_flair"</span>: ..., <span class="str">"sklearn_flair"</span>: ... })
+    </pre>
+  </div>
+</div>
+
+<!-- =========== SLIDE 14: CONSUMER CODE =========== -->
+<div class="slide" data-notes="Quarkus consumer uses SmallRye Reactive Messaging. @Incoming annotation wires it to Kafka. Updates in-memory statistics: confusion matrix, agreement, confidence distributions. REST endpoints serve the dashboard.">
+  <div class="content">
+    <h3>Quarkus Consumer</h3>
+    <h2><code>BaseResource.java</code></h2>
+    <pre style="margin-top: 24px; font-size: 0.82rem;">
+<span class="ann">@Incoming</span>(<span class="str">"kafka-predictions"</span>)
+<span class="ann">@Blocking</span>
+<span class="kw">public</span> Uni&lt;Void&gt; <span class="fn">consume</span>(KafkaRecord&lt;String, String&gt; record) {
+    JsonObject json = <span class="kw">new</span> JsonObject(record.getPayload());
+
+    String transformerFlair = json.getString(<span class="str">"transformer_flair"</span>);
+    <span class="kw">double</span> transformerConf  = json.getDouble(<span class="str">"transformer_confidence"</span>);
+    String sklearnFlair    = json.getString(<span class="str">"sklearn_flair"</span>);
+    <span class="kw">double</span> sklearnConf     = json.getDouble(<span class="str">"sklearn_confidence"</span>);
+
+    <span class="cmt">// Update in-memory analytics</span>
+    updateStatistics(transformerFlair, sklearnFlair, transformerConf, sklearnConf);
+    updateConfusionMatrix(transformerFlair, sklearnFlair);
+    updateConfidenceDistribution(transformerConf, sklearnConf);
+    updateModelUncertaintyZone(transformerConf, sklearnConf);
+
+    record.ack();
+}
+    </pre>
+  </div>
+</div>
+
+<!-- =========== SLIDE 15: SECTION - DASHBOARDS =========== -->
+<div class="slide section-slide" data-notes="Transition to dashboard walkthrough. Switch to browser tabs.">
+  <div class="content center">
+    <div class="section-num">06</div>
+    <h2>Dashboards</h2>
+    <p>Real-time analytics served by Quarkus REST endpoints</p>
+  </div>
+</div>
+
+<!-- =========== SLIDE 16: DASHBOARD OVERVIEW =========== -->
+<div class="slide" data-notes="Walk through each dashboard in the browser. Main metrics, confusion matrix, confidence distribution, uncertainty zones, agreement over time, flair drift.">
+  <div class="content">
+    <h3>Live Dashboards</h3>
+    <h2>Six views into the pipeline</h2>
+    <div class="dash-grid">
+      <div class="dash-card">
+        <div class="dash-icon" style="color: var(--accent);">&boxbox;</div>
+        <div class="dash-title">Main Metrics</div>
+        <div class="dash-desc">Flair distribution, confidence,<br>agreement rate per flair</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-icon" style="color: var(--accent2);">&boxH;</div>
+        <div class="dash-title">Confusion Matrix</div>
+        <div class="dash-desc">Transformer vs sklearn<br>D3.js heatmap</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-icon" style="color: var(--accent3);">&equiv;</div>
+        <div class="dash-title">Confidence Distribution</div>
+        <div class="dash-desc">Stacked histogram<br>comparing both models</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-icon" style="color: var(--accent4);">&ofcir;</div>
+        <div class="dash-title">Uncertainty Zones</div>
+        <div class="dash-desc">Both confident / uncertain /<br>disagreement doughnut</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-icon" style="color: var(--accent5);">&zigrarr;</div>
+        <div class="dash-title">Agreement Over Time</div>
+        <div class="dash-desc">Daily agreement rate<br>line chart</div>
+      </div>
+      <div class="dash-card">
+        <div class="dash-icon" style="color: var(--text-dim);">&UpArrowBar;</div>
+        <div class="dash-title">Flair Drift</div>
+        <div class="dash-desc">Per-flair daily frequency<br>drift detection</div>
+      </div>
+    </div>
+    <p style="text-align:center; margin-top: 20px; font-size: 1rem;">All dashboards auto-refresh &mdash; switch to <strong class="accent">browser tabs</strong> to see live data</p>
+  </div>
+</div>
+
+<!-- =========== SLIDE 17: KEY INSIGHT - UNCERTAINTY =========== -->
+<div class="slide" data-notes="The most actionable dashboard. Both Confident = reliable. Both Uncertain = hard posts. Disagreement = candidates for manual review or retraining. This works WITHOUT ground-truth labels.">
+  <div class="content center">
+    <h3>Key Insight</h3>
+    <h2>Model uncertainty zones</h2>
+    <div class="cols cols-3" style="margin-top: 36px;">
+      <div class="card" style="border-color: var(--accent3); text-align:center;">
+        <p style="font-size: 2.5rem; color: var(--accent3); font-weight:800;">&#10003;</p>
+        <p><strong>Both Confident</strong></p>
+        <p style="font-size: 0.95rem;">Both models &gt; 0.6 confidence</p>
+        <p style="font-size: 0.85rem; margin-top:8px; color:var(--accent3);">Reliable predictions</p>
+      </div>
+      <div class="card" style="border-color: var(--accent4); text-align:center;">
+        <p style="font-size: 2.5rem; color: var(--accent4); font-weight:800;">?</p>
+        <p><strong>Both Uncertain</strong></p>
+        <p style="font-size: 0.95rem;">Both models &lt; 0.6 confidence</p>
+        <p style="font-size: 0.85rem; margin-top:8px; color:var(--accent4);">Hard examples</p>
+      </div>
+      <div class="card" style="border-color: var(--red); text-align:center;">
+        <p style="font-size: 2.5rem; color: var(--red); font-weight:800;">&#x2194;</p>
+        <p><strong>Disagreement</strong></p>
+        <p style="font-size: 0.95rem;">One confident, one not</p>
+        <p style="font-size: 0.85rem; margin-top:8px; color:var(--red);">Review / retrain candidates</p>
+      </div>
+    </div>
+    <p style="margin-top: 28px; font-size: 1.15rem;">Works <strong>without ground-truth labels</strong> in production</p>
+  </div>
+</div>
+
+<!-- =========== SLIDE 18: SECTION - PRODUCTION =========== -->
+<div class="slide section-slide" data-notes="Transition to production considerations.">
+  <div class="content center">
+    <div class="section-num">07</div>
+    <h2>Production Considerations</h2>
+    <p>What to add beyond the demo</p>
+  </div>
+</div>
+
+<!-- =========== SLIDE 19: PRODUCTION =========== -->
+<div class="slide" data-notes="In production: add Prometheus + Grafana + Jaeger for observability. DLQs at every stage. Partition Kafka topics for parallelism. Scale Spark executors. Replicate the consumer.">
+  <div class="content">
+    <h3>Beyond the demo</h3>
+    <h2>Production hardening</h2>
+    <div class="cols cols-2" style="margin-top: 28px;">
+      <div class="card">
+        <p><strong class="accent">Observability</strong></p>
+        <p style="font-size:1rem; margin-top:8px;">Prometheus + Grafana for metrics<br>Jaeger for distributed tracing<br>Quarkus has built-in support for all three</p>
+      </div>
+      <div class="card">
+        <p><strong class="accent2">Failure Handling</strong></p>
+        <p style="font-size:1rem; margin-top:8px;">Dead Letter Queues at every pipeline stage<br>Exponential backoff with jitter<br>Circuit breaker patterns</p>
+      </div>
+      <div class="card">
+        <p><strong class="accent3">Scaling</strong></p>
+        <p style="font-size:1rem; margin-top:8px;">Partition Kafka topics for parallelism<br>Scale Spark executors horizontally<br>Replicate the Quarkus consumer</p>
+      </div>
+      <div class="card">
+        <p><strong class="accent4">Schema Evolution</strong></p>
+        <p style="font-size:1rem; margin-top:8px;">Apicurio Registry compatibility rules<br>Backward / forward / full compatibility<br>Safe, controlled schema changes</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =========== SLIDE 20: EXTENSIBILITY =========== -->
+<div class="slide" data-notes="The pattern is reusable. Swap Reddit for any event source. Swap the models. The pipeline architecture stays the same.">
+  <div class="content center">
+    <h3>Extensibility</h3>
+    <h2>The pipeline pattern is reusable</h2>
+    <div class="cols cols-3" style="margin-top: 32px;">
+      <div class="card" style="text-align:center;">
+        <p style="font-size:1.6rem; margin-bottom:12px;">Swap the <strong class="accent4">source</strong></p>
+        <p style="font-size:0.95rem;">Reddit &rarr; Twitter, IoT, logs,<br>internal databases, webhooks</p>
+      </div>
+      <div class="card" style="text-align:center;">
+        <p style="font-size:1.6rem; margin-bottom:12px;">Swap the <strong class="accent">models</strong></p>
+        <p style="font-size:0.95rem;">DistilRoBERTa &rarr; BERT, GPT,<br>any HuggingFace model</p>
+      </div>
+      <div class="card" style="text-align:center;">
+        <p style="font-size:1.6rem; margin-bottom:12px;">Swap the <strong class="accent3">target</strong></p>
+        <p style="font-size:0.95rem;">Dashboard &rarr; alerts, databases,<br>downstream services</p>
+      </div>
+    </div>
+    <p style="margin-top: 32px; font-size: 1.2rem;"><strong>All open source.</strong> No vendor lock-in.</p>
+  </div>
+</div>
+
+<!-- =========== SLIDE 21: KEY TAKEAWAYS =========== -->
+<div class="slide" data-notes="Wrap up with 4 key takeaways. Building real-time ML pipelines with OSS is practical. Dual models give richer observability. Schema governance prevents silent failures. K8s operators simplify ops.">
+  <div class="content">
+    <h3>Wrap Up</h3>
+    <h2>Key Takeaways</h2>
+    <div class="takeaway-grid" style="margin-top: 28px;">
+      <div class="takeaway-card">
+        <div class="num accent">01</div>
+        <p>Building <strong>real-time ML pipelines</strong> with open source is achievable and practical</p>
+      </div>
+      <div class="takeaway-card">
+        <div class="num accent2">02</div>
+        <p>Running <strong>dual models</strong> provides richer observability than a single model</p>
+      </div>
+      <div class="takeaway-card">
+        <div class="num accent3">03</div>
+        <p><strong>Schema governance</strong> with Apicurio Registry prevents silent contract violations</p>
+      </div>
+      <div class="takeaway-card">
+        <div class="num accent4">04</div>
+        <p><strong>Kubernetes operators</strong> (Strimzi, Spark) simplify deployment and operations</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =========== SLIDE 22: THANK YOU =========== -->
+<div class="slide title-slide" data-notes="Thank the audience. Open for questions.">
+  <div class="content center">
+    <h1>Thank You</h1>
+    <p class="subtitle">Questions?</p>
+    <div class="title-meta" style="justify-content: center;">
+      <span><strong>Carles Arnal</strong></span>
+      <span>Principal Software Engineer, IBM</span>
+    </div>
+    <div class="tech-row" style="margin-top: 48px;">
+      <div class="tech-item">Strimzi</div>
+      <div class="tech-item">Apache Kafka</div>
+      <div class="tech-item">Apache Spark</div>
+      <div class="tech-item">Quarkus</div>
+      <div class="tech-item">Apicurio Registry</div>
+      <div class="tech-item">PyTorch</div>
+      <div class="tech-item">scikit-learn</div>
+      <div class="tech-item">Kubernetes</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /deck -->
+
+<!-- Progress bar -->
+<div class="progress" id="progress"></div>
+
+<!-- Slide counter -->
+<div class="slide-counter" id="counter"></div>
+
+<!-- Speaker notes panel -->
+<div class="speaker-notes" id="notes"></div>
+
+<script>
+(function() {
+  const slides = document.querySelectorAll('.slide');
+  const progress = document.getElementById('progress');
+  const counter = document.getElementById('counter');
+  const notesPanel = document.getElementById('notes');
+  let current = 0;
+  let notesVisible = false;
+
+  function show(index) {
+    if (index < 0 || index >= slides.length) return;
+    slides[current].classList.remove('active');
+    current = index;
+    slides[current].classList.add('active');
+
+    // progress
+    const pct = ((current + 1) / slides.length) * 100;
+    progress.style.width = pct + '%';
+
+    // counter
+    counter.textContent = (current + 1) + ' / ' + slides.length;
+
+    // notes
+    const note = slides[current].getAttribute('data-notes') || '';
+    notesPanel.innerHTML = note;
+  }
+
+  function next() { show(current + 1); }
+  function prev() { show(current - 1); }
+
+  // Keyboard navigation
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown') {
+      e.preventDefault(); next();
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
+      e.preventDefault(); prev();
+    } else if (e.key === 'Home') {
+      e.preventDefault(); show(0);
+    } else if (e.key === 'End') {
+      e.preventDefault(); show(slides.length - 1);
+    } else if (e.key === 'n' || e.key === 'N') {
+      notesVisible = !notesVisible;
+      notesPanel.classList.toggle('visible', notesVisible);
+    } else if (e.key === 'f' || e.key === 'F') {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        document.exitFullscreen();
+      }
+    } else if (e.key === 'Escape' && document.fullscreenElement) {
+      document.exitFullscreen();
+    }
+    // Number keys jump to slide
+    if (e.key >= '0' && e.key <= '9' && !e.ctrlKey && !e.metaKey) {
+      // build multi-digit number with 500ms timeout
+      clearTimeout(window._numTimeout);
+      window._numBuffer = (window._numBuffer || '') + e.key;
+      window._numTimeout = setTimeout(function() {
+        var n = parseInt(window._numBuffer, 10) - 1;
+        window._numBuffer = '';
+        if (n >= 0 && n < slides.length) show(n);
+      }, 500);
+    }
+  });
+
+  // Touch / swipe
+  let touchStartX = 0;
+  document.addEventListener('touchstart', function(e) { touchStartX = e.touches[0].clientX; });
+  document.addEventListener('touchend', function(e) {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 60) { dx < 0 ? next() : prev(); }
+  });
+
+  // Click left/right halves
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.speaker-notes')) return;
+    if (e.clientX > window.innerWidth * 0.65) next();
+    else if (e.clientX < window.innerWidth * 0.35) prev();
+  });
+
+  // Init
+  show(0);
+})();
+</script>
+</body>
+</html>
