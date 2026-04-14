@@ -1,5 +1,3 @@
-# Dockerfile
-
 FROM registry.access.redhat.com/ubi8/python-39
 
 WORKDIR /app
@@ -11,6 +9,6 @@ COPY stop.txt .
 COPY nltk_data/ /usr/local/share/nltk_data/
 ENV NLTK_DATA="/usr/local/share/nltk_data"
 
-RUN pip install --no-cache-dir praw kafka-python tldextract nltk pandas opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-grpc
+RUN pip install --no-cache-dir praw kafka-python tldextract nltk pandas
 
 CMD ["python", "-u", "reddit_posts_processor.py"]
