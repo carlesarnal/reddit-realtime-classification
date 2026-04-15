@@ -828,7 +828,33 @@ spark-reddit-inference-driver               <span class="str">1/1     Running</s
   </div>
 </div>
 
-<!-- =========== SLIDE 21: KEY TAKEAWAYS =========== -->
+<!-- =========== SLIDE 21: CONCLUSIONS =========== -->
+<div class="slide" data-notes="Walk through what we observed from the live pipeline. The transformer is highly confident and polarized. sklearn is more cautious and spread. Agreement varies by flair — some categories are easy for both models, others are inherently ambiguous. The disagreement zone is the most valuable output of the whole pipeline.">
+  <div class="content">
+    <h3>Conclusions</h3>
+    <h2>What the pipeline revealed</h2>
+    <div class="cols cols-2" style="margin-top: 28px;">
+      <div class="card">
+        <p><strong class="accent">The transformer is highly confident</strong></p>
+        <p style="font-size:1rem; margin-top:8px;">The neural network concentrates most predictions in the highest confidence band &mdash; it commits strongly to its choices. This is typical of deep learning models with softmax outputs.</p>
+      </div>
+      <div class="card">
+        <p><strong class="accent2">sklearn is more cautious and distributed</strong></p>
+        <p style="font-size:1rem; margin-top:8px;">The linear model spreads confidence across a wider range. It hesitates more, especially on ambiguous posts. Different model families exhibit fundamentally different confidence profiles.</p>
+      </div>
+      <div class="card">
+        <p><strong class="accent3">Agreement depends heavily on the category</strong></p>
+        <p style="font-size:1rem; margin-top:8px;">Some flairs (Food, Politics, Meta) show strong agreement &mdash; both models find them easy. Others (Work, Sports, Personal) are harder. This tells us where our training data or feature engineering may need improvement.</p>
+      </div>
+      <div class="card">
+        <p><strong class="accent4">Disagreement is the most valuable signal</strong></p>
+        <p style="font-size:1rem; margin-top:8px;">Posts where one model is confident and the other is not are the best candidates for manual review and active learning &mdash; all without requiring ground-truth labels in production.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =========== SLIDE 22: KEY TAKEAWAYS =========== -->
 <div class="slide" data-notes="Wrap up with 4 key takeaways. Building real-time ML pipelines with OSS is practical. Dual models give richer observability. Schema governance prevents silent failures. K8s operators simplify ops.">
   <div class="content">
     <h3>Wrap Up</h3>
@@ -840,15 +866,15 @@ spark-reddit-inference-driver               <span class="str">1/1     Running</s
       </div>
       <div class="takeaway-card">
         <div class="num accent2">02</div>
-        <p>Running <strong>dual models</strong> provides richer observability than a single model</p>
+        <p>Running <strong>dual models</strong> provides richer observability than a single model &mdash; each model family exposes the other's blind spots</p>
       </div>
       <div class="takeaway-card">
         <div class="num accent3">03</div>
-        <p><strong>Schema governance</strong> with Apicurio Registry prevents silent contract violations</p>
+        <p><strong>Schema governance</strong> with Apicurio Registry prevents silent contract violations as the pipeline evolves</p>
       </div>
       <div class="takeaway-card">
         <div class="num accent4">04</div>
-        <p><strong>Kubernetes operators</strong> (Strimzi, Spark) simplify deployment and operations</p>
+        <p><strong>Kubernetes operators</strong> (Strimzi, Spark) turn complex distributed systems into declarative YAML</p>
       </div>
     </div>
   </div>
