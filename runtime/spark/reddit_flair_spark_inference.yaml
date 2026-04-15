@@ -7,8 +7,8 @@ spec:
   type: Python
   pythonVersion: "3"
   mode: cluster
-  image: quay.io/carlesarnal/spark-inference:sha-2e4c7d5
-  imagePullPolicy: IfNotPresent
+  image: docker.io/library/spark-inference:local
+  imagePullPolicy: Never
   mainApplicationFile: local:///opt/spark/jobs/reddit_flair_spark_inference.py
   sparkVersion: 3.5.3
   driver:

@@ -15,7 +15,8 @@ spec:
     spec:
       containers:
         - name: predictions-consumer
-          image: quay.io/carlesarnal/predictions-publisher:sha-7bc39b5
+          image: docker.io/library/predictions-consumer:local
+          imagePullPolicy: Never
           ports:
             - containerPort: 8080
           resources:
