@@ -21,6 +21,12 @@ kubectl create namespace reddit-realtime
 # Install Strimzi operator
 kubectl apply -f https://strimzi.io/install/latest?namespace=reddit-realtime -n reddit-realtime
 
+# Create Reddit API credentials secret
+kubectl create secret generic reddit-api-credentials \
+  --from-literal=client-id=YOUR_REDDIT_CLIENT_ID \
+  --from-literal=client-secret=YOUR_REDDIT_CLIENT_SECRET \
+  -n reddit-realtime
+
 # Deploy Kafka cluster
 kubectl apply -f runtime/kafka/kafka_cluster.yaml
 

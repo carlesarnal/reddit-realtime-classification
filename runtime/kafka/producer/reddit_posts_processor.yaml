@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
         - name: kafka-producer
-          image: quay.io/carlesarnal/reddit-posts-processor:sha-5cf65a9
-          imagePullPolicy: Always
+          image: docker.io/library/reddit-producer:local
+          imagePullPolicy: Never
           env:
             - name: KAFKA_BROKER
               value: "reddit-posts-kafka-bootstrap.reddit-realtime.svc:9093"
@@ -32,8 +32,6 @@ spec:
                   key: client-secret
             - name: REDDIT_USER_AGENT
               value: "predictions"
-            - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://jaeger.reddit-realtime.svc:4317"
           resources:
             requests:
               memory: "256Mi"
