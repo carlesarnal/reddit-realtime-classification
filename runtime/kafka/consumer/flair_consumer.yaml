@@ -18,9 +18,6 @@ spec:
           image: quay.io/carlesarnal/predictions-publisher:sha-7bc39b5
           ports:
             - containerPort: 8080
-          env:
-            - name: QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://jaeger.reddit-realtime.svc:4317"
           resources:
             requests:
               memory: "256Mi"

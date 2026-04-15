@@ -13,28 +13,11 @@ spec:
   sparkVersion: 3.5.3
   driver:
     cores: 1
-    memory: 3g
+    memory: 1500m
     serviceAccount: spark-operator-spark
-    env:
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: "http://jaeger.reddit-realtime.svc:4317"
-    resources:
-      requests:
-        memory: "3Gi"
-        cpu: "1"
-      limits:
-        memory: "4Gi"
-        cpu: "2"
   executor:
     cores: 1
     instances: 1
-    memory: 3g
-    resources:
-      requests:
-        memory: "3Gi"
-        cpu: "1"
-      limits:
-        memory: "4Gi"
-        cpu: "2"
+    memory: 1500m
     labels:
       version: "3.5.0"

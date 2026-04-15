@@ -13,7 +13,7 @@
 
 ```bash
 # Start Minikube
-minikube start --memory=4g --cpus=2
+minikube start --memory=8g --cpus=4
 
 # Create namespace
 kubectl create namespace reddit-realtime
