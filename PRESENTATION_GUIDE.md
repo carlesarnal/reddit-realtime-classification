@@ -27,17 +27,60 @@ kubectl create secret generic reddit-api-credentials \
   --from-literal=client-secret=YOUR_REDDIT_CLIENT_SECRET \
   -n reddit-realtime
 
-# Deploy Kafka cluster
+# Deploy Kafka cluster (wait for Strimzi operator to be ready first)
+kubectl wait --for=condition=available deployment/strimzi-cluster-operator -n reddit-realtime --timeout=120s
 kubectl apply -f runtime/kafka/kafka_cluster.yaml
 
-# Create topics
-kubectl apply -f runtime/kafka/producer/incoming_topic.yaml
-kubectl apply -f runtime/kafka/consumer/outgoing_topic.yaml
+# Wait for Kafka to be ready, then create topics
+kubectl wait kafka/reddit-posts --for=condition=Ready -n reddit-realtime --timeout=300s
 
-# Install Spark operator
+kubectl apply -f - <<EOF
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: reddit-stream
+  namespace: reddit-realtime
+  labels:
+    strimzi.io/cluster: reddit-posts
+spec:
+  partitions: 1
+  replicas: 1
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: kafka-predictions
+  namespace: reddit-realtime
+  labels:
+    strimzi.io/cluster: reddit-posts
+spec:
+  partitions: 1
+  replicas: 1
+EOF
+
+# Install Spark operator (must watch spark-operator namespace)
 helm repo add spark-operator https://kubeflow.github.io/spark-operator
 helm repo update
-helm install spark-operator spark-operator/spark-operator --namespace spark-operator --create-namespace --wait
+helm install spark-operator spark-operator/spark-operator \
+  --namespace spark-operator --create-namespace \
+  --set 'spark.jobNamespaces={spark-operator}' --wait
+```
+
+### Build container images (20 min before)
+
+Build arm64 images locally and load them into Minikube:
+
+```bash
+# Build all 3 images
+podman build --platform linux/arm64 -t reddit-producer:local -f runtime/kafka/producer/Dockerfile runtime/kafka/producer/
+podman build --platform linux/arm64 -t spark-inference:local -f runtime/spark/Dockerfile runtime/spark/
+cd runtime/kafka/consumer/flair-consumer && mvn package -DskipTests -q && \
+  podman build --platform linux/arm64 -t predictions-consumer:local -f src/main/docker/Dockerfile.jvm . && cd -
+
+# Load into Minikube
+minikube image load reddit-producer:local
+minikube image load spark-inference:local
+minikube image load predictions-consumer:local
 ```
 
 ### Pre-deploy the pipeline (15 min before)
@@ -48,17 +91,23 @@ Deploy everything **except** the producer so the pipeline is warm and ready. The
 # Deploy Apicurio Registry (schema governance)
 kubectl apply -f runtime/registry/apicurio-registry.yaml
 
-# Register schemas
-schemas/register-schemas.sh
-
 # Deploy Spark inference job (takes time to load models — do this early)
 kubectl apply -f runtime/spark/reddit_flair_spark_inference.yaml
 
 # Deploy Quarkus consumer + dashboard
 kubectl apply -f runtime/kafka/consumer/flair_consumer.yaml
 
+# Wait for deployments to be ready BEFORE setting up port-forwarding
+kubectl wait --for=condition=available deployment/apicurio-registry -n reddit-realtime --timeout=120s
+kubectl wait --for=condition=available deployment/predictions-consumer -n reddit-realtime --timeout=120s
+
 # Set up port-forwarding
 kubectl port-forward -n reddit-realtime svc/predictions-consumer 8080:80 &
+kubectl port-forward -n reddit-realtime svc/apicurio-registry 8081:8080 &
+sleep 3
+
+# Register schemas
+REGISTRY_URL=http://localhost:8081 schemas/register-schemas.sh
 ```
 
 ### Verify everything is ready
@@ -149,7 +198,7 @@ Reddit API ──> Kafka Producer ──> [reddit-stream] ──> Spark Streamin
 
 ```bash
 # Show registered schemas
-curl -s http://localhost:8081/apis/registry/v3/groups/default/artifacts | python3 -m json.tool
+curl -s http://localhost:8081/apis/registry/v3/groups/reddit-realtime/artifacts | python3 -m json.tool
 ```
 
 - Briefly show `schemas/reddit-stream-value.json` and `schemas/kafka-predictions-value.json`.
@@ -200,30 +249,25 @@ curl -s http://localhost:8080/flairs/statistics | python3 -m json.tool
 
 ---
 
-## Part 5 — Code Walkthrough (5 min)
+## Part 5 — How It Works (5 min)
 
-Walk through the key code while data flows in the background.
+Explain the data journey and key design decisions while data flows in the background. Share the GitHub repo link for anyone who wants to see the code.
 
-### Producer (`runtime/kafka/producer/reddit_posts_processor.py`)
+### The Data Journey
 
-Highlight:
-- Reddit API call via PRAW (line ~54: `subreddit.search`)
-- Text cleaning pipeline (lines ~80-87: pandas + NLP)
-- Kafka publish (line ~93: `producer.send`)
+Walk through the 4 stages:
 
-### Spark Job (`runtime/spark/reddit_flair_spark_inference.py`)
+1. **Collect & clean** — Fetch posts from Reddit API, strip URLs/stopwords/punctuation, lemmatize, concatenate title + body + comments + domain.
+2. **Validate & stream** — Validate against JSON Schema in Apicurio Registry, publish to Kafka topic `reddit-stream`.
+3. **Dual inference** — Spark consumes in micro-batches, runs Transformer (tokenize → forward pass → softmax) and sklearn (TF-IDF → LSA → classify) in parallel, outputs both predictions + confidence scores.
+4. **Consume & analyze** — Quarkus consumer reads predictions, computes real-time statistics (agreement, confusion matrix, confidence distributions, uncertainty zones), serves dashboards via REST.
 
-Highlight:
-- Lazy model loading (line ~22: `_get_models()`)
-- Dual inference in the UDF: Transformer path (tokenize → forward pass → softmax) and sklearn path (TF-IDF → LSA → predict)
-- Kafka source → Kafka sink with Structured Streaming
+### Key Design Decisions
 
-### Quarkus Consumer (`runtime/kafka/consumer/flair-consumer/`)
-
-Highlight:
-- Reactive Messaging `@Incoming("kafka-predictions")` consuming from Kafka
-- In-memory statistics: confusion matrix, agreement tracking, confidence distributions
-- REST endpoints serving the dashboard data
+- **Inference inside Spark** — Models loaded once per executor as UDFs. Avoids model-serving hop latency.
+- **In-memory analytics** — ConcurrentHashMaps for speed. State lost on restart (production would use a time-series DB).
+- **Schema-first contracts** — JSON Schemas registered in Apicurio before data flows. Components evolve independently.
+- **Lazy model loading** — Models loaded on first use, not at import time. Sidesteps PySpark UDF serialization issues.
 
 ---
 
@@ -297,6 +341,8 @@ Multi-line chart with one line per flair showing daily frequency.
 | No data in dashboard | Check producer logs: `kubectl logs -f deployment/kafka-producer -n reddit-realtime` |
 | Spark job failing | Check driver: `kubectl logs spark-reddit-inference-driver -n spark-operator` |
 | Port-forward dropped | Re-run: `kubectl port-forward -n reddit-realtime svc/predictions-consumer 8080:80` |
+| Apicurio schemas lost | In-memory storage; re-register: `REGISTRY_URL=http://localhost:8081 schemas/register-schemas.sh` |
+| Producer CreateContainerConfigError | Secret missing: `kubectl create secret generic reddit-api-credentials ...` |
 | Empty charts | Wait 5+ min for data to flow through the full pipeline |
 
 ---
@@ -309,6 +355,6 @@ Multi-line chart with one line per flair showing daily frequency.
 | ML Models | 5 min | 10 min |
 | Schema Governance (Apicurio Registry) | 5 min | 15 min |
 | Live Demo: Start Pipeline | 10 min | 25 min |
-| Code Walkthrough | 5 min | 30 min |
+| How It Works | 5 min | 30 min |
 | Dashboard Walkthrough | 10 min | 40 min |
 | Production & Wrap Up | 5 min | 45 min |

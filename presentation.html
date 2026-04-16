@@ -573,6 +573,7 @@ spark-reddit-inference-driver               <span class="str">1/1     Running</s
     <div style="text-align: center; margin-top: 24px;">
       <p style="font-size: 1.2rem;">Everything is running. Now let's start the <strong class="accent4">producer</strong>.</p>
     </div>
+    <p style="text-align:center; margin-top: 16px; font-size: 0.9rem; color: var(--text-dim);">&#9654; Switch to <strong class="accent4">Terminal 1</strong> &mdash; kubectl commands</p>
   </div>
 </div>
 
@@ -598,96 +599,80 @@ spark-reddit-inference-driver               <span class="str">1/1     Running</s
 <span class="cmt"># Verify predictions are flowing</span>
 <span class="fn">$</span> curl -s http://localhost:8080/flairs/statistics | python3 -m json.tool
     </pre>
+    <p style="text-align:center; margin-top: 16px; font-size: 0.9rem; color: var(--text-dim);">&#9654; <strong class="accent4">T1</strong>: deploy &amp; curl &nbsp;|&nbsp; <strong class="accent4">T2</strong>: tail producer logs</p>
   </div>
 </div>
 
-<!-- =========== SLIDE 11: SECTION - CODE =========== -->
-<div class="slide section-slide" data-notes="Transition to code walkthrough. Data is flowing in the background.">
+<!-- =========== SLIDE 11: SECTION - HOW IT WORKS =========== -->
+<div class="slide section-slide" data-notes="Transition to explaining how data transforms at each stage. No code — just the concepts. Point people to the repo for implementation details.">
   <div class="content center">
     <div class="section-num">05</div>
-    <h2>Code Walkthrough</h2>
-    <p>The key pieces while data flows in the background</p>
+    <h2>How It Works</h2>
+    <p>What happens at each stage of the pipeline</p>
   </div>
 </div>
 
-<!-- =========== SLIDE 12: PRODUCER CODE =========== -->
-<div class="slide" data-notes="Walk through the producer code. Simple loop: fetch Reddit posts by flair, clean text with NLP, publish to Kafka.">
+<!-- =========== SLIDE 12: DATA JOURNEY =========== -->
+<div class="slide" data-notes="Walk through the data transformation at each stage. Raw Reddit post goes in, cleaned text enters Kafka, dual predictions come out, analytics are computed in real-time.">
   <div class="content">
-    <h3>Producer</h3>
-    <h2><code>reddit_posts_processor.py</code></h2>
-    <pre style="margin-top: 24px; font-size: 0.82rem;">
-<span class="kw">for</span> flair <span class="kw">in</span> flairs:
-    new_posts = subreddit.search(query=<span class="str">f"flair:{flair}"</span>, time_filter=<span class="str">"week"</span>, limit=<span class="num">200</span>)
-
-    <span class="kw">for</span> submission <span class="kw">in</span> new_posts:
-        <span class="cmt"># Extract post data, domain, comments</span>
-        post_data = { <span class="str">"id"</span>: submission.id, <span class="str">"title"</span>: submission.title, ... }
-
-        <span class="cmt"># Clean text with NLP pipeline (stopwords, lemmatization, URL removal)</span>
-        data = pd.DataFrame(post_data)
-        cleaning.clean_text(data, <span class="str">'title'</span>)
-        cleaning.clean_text(data, <span class="str">'body'</span>)
-        cleaning.clean_text(data, <span class="str">'comments'</span>)
-        data[<span class="str">'content'</span>] = data.title + <span class="str">' '</span> + data.body + <span class="str">' '</span> + data.comments + <span class="str">' '</span> + data.domain
-
-        <span class="cmt"># Send to Kafka</span>
-        producer.send(<span class="str">"reddit-stream"</span>, value=msg)
-    </pre>
+    <h3>The data journey</h3>
+    <h2>From raw post to actionable insight</h2>
+    <div style="margin-top: 28px;">
+      <div class="card" style="margin-bottom: 16px; display: flex; align-items: center; gap: 24px;">
+        <div style="min-width: 40px; text-align: center;"><span class="badge badge-orange">1</span></div>
+        <div>
+          <p><strong>Collect &amp; clean</strong></p>
+          <p style="font-size:0.95rem;">Fetch posts from Reddit API &rarr; strip URLs, stopwords, punctuation &rarr; lemmatize &rarr; concatenate title + body + comments + domain into a single content field</p>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom: 16px; display: flex; align-items: center; gap: 24px;">
+        <div style="min-width: 40px; text-align: center;"><span class="badge badge-green">2</span></div>
+        <div>
+          <p><strong>Validate &amp; stream</strong></p>
+          <p style="font-size:0.95rem;">Validate message against JSON Schema in Apicurio Registry &rarr; publish to Kafka topic <code>reddit-stream</code></p>
+        </div>
+      </div>
+      <div class="card" style="margin-bottom: 16px; display: flex; align-items: center; gap: 24px;">
+        <div style="min-width: 40px; text-align: center;"><span class="badge badge-blue">3</span></div>
+        <div>
+          <p><strong>Dual inference</strong></p>
+          <p style="font-size:0.95rem;">Spark consumes in micro-batches &rarr; runs Transformer (tokenize &rarr; forward pass &rarr; softmax) and sklearn (TF-IDF &rarr; LSA &rarr; classify) in parallel &rarr; outputs both predictions + confidence scores</p>
+        </div>
+      </div>
+      <div class="card" style="display: flex; align-items: center; gap: 24px;">
+        <div style="min-width: 40px; text-align: center;"><span class="badge badge-purple">4</span></div>
+        <div>
+          <p><strong>Consume &amp; analyze</strong></p>
+          <p style="font-size:0.95rem;">Quarkus consumer reads predictions &rarr; computes real-time statistics (agreement, confusion matrix, confidence distributions, uncertainty zones) &rarr; serves dashboards via REST</p>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- =========== SLIDE 13: SPARK CODE =========== -->
-<div class="slide" data-notes="Walk through the Spark UDF. Both models are lazy-loaded to avoid serialization issues. Transformer: tokenize, forward pass, softmax. sklearn: TF-IDF, LSA, predict.">
+<!-- =========== SLIDE 13: DESIGN DECISIONS =========== -->
+<div class="slide" data-notes="Explain the key design decisions. Why Spark UDFs for inference instead of a separate model server? Why in-memory stats? Why two Kafka topics? These are the interesting architectural choices the audience can learn from.">
   <div class="content">
-    <h3>Spark Inference</h3>
-    <h2><code>reddit_flair_spark_inference.py</code></h2>
-    <pre style="margin-top: 24px; font-size: 0.82rem;">
-<span class="kw">def</span> <span class="fn">dual_model_prediction</span>(row):
-    m = _get_models()   <span class="cmt"># lazy-loaded once per executor</span>
-
-    <span class="cmt"># Transformer inference (DistilBERT)</span>
-    inputs = m[<span class="str">"tokenizer"</span>](content, return_tensors=<span class="str">"pt"</span>, truncation=<span class="kw">True</span>, max_length=<span class="num">512</span>)
-    <span class="kw">with</span> torch.no_grad():
-        outputs = m[<span class="str">"transformer_model"</span>](**inputs)
-    probs = torch.nn.functional.softmax(outputs.logits, dim=-<span class="num">1</span>)
-    transformer_flair = m[<span class="str">"flairs"</span>][torch.argmax(probs, dim=<span class="num">1</span>).item()]
-
-    <span class="cmt"># sklearn inference (TF-IDF + LSA + Logistic Regression)</span>
-    X = m[<span class="str">"tfidf"</span>].transform([content])
-    X_reduced = m[<span class="str">"tsvd"</span>].transform(X)
-    sk_probs = m[<span class="str">"classifier"</span>].predict_proba(X_reduced)[<span class="num">0</span>]
-    sklearn_flair = m[<span class="str">"flairs"</span>][sk_probs.argmax()]
-
-    <span class="kw">return</span> json.dumps({ <span class="str">"transformer_flair"</span>: ..., <span class="str">"sklearn_flair"</span>: ... })
-    </pre>
-  </div>
-</div>
-
-<!-- =========== SLIDE 14: CONSUMER CODE =========== -->
-<div class="slide" data-notes="Quarkus consumer uses SmallRye Reactive Messaging. @Incoming annotation wires it to Kafka. Updates in-memory statistics: confusion matrix, agreement, confidence distributions. REST endpoints serve the dashboard.">
-  <div class="content">
-    <h3>Quarkus Consumer</h3>
-    <h2><code>BaseResource.java</code></h2>
-    <pre style="margin-top: 24px; font-size: 0.82rem;">
-<span class="ann">@Incoming</span>(<span class="str">"kafka-predictions"</span>)
-<span class="ann">@Blocking</span>
-<span class="kw">public</span> Uni&lt;Void&gt; <span class="fn">consume</span>(KafkaRecord&lt;String, String&gt; record) {
-    JsonObject json = <span class="kw">new</span> JsonObject(record.getPayload());
-
-    String transformerFlair = json.getString(<span class="str">"transformer_flair"</span>);
-    <span class="kw">double</span> transformerConf  = json.getDouble(<span class="str">"transformer_confidence"</span>);
-    String sklearnFlair    = json.getString(<span class="str">"sklearn_flair"</span>);
-    <span class="kw">double</span> sklearnConf     = json.getDouble(<span class="str">"sklearn_confidence"</span>);
-
-    <span class="cmt">// Update in-memory analytics</span>
-    updateStatistics(transformerFlair, sklearnFlair, transformerConf, sklearnConf);
-    updateConfusionMatrix(transformerFlair, sklearnFlair);
-    updateConfidenceDistribution(transformerConf, sklearnConf);
-    updateModelUncertaintyZone(transformerConf, sklearnConf);
-
-    record.ack();
-}
-    </pre>
+    <h3>Design decisions</h3>
+    <h2>Trade-offs we made</h2>
+    <div class="cols cols-2" style="margin-top: 28px;">
+      <div class="card">
+        <p><strong class="accent">Inference inside Spark</strong></p>
+        <p style="font-size:0.95rem; margin-top:8px;">Models are loaded once per executor and called as UDFs. This avoids the latency of a separate model-serving hop and keeps the pipeline simple &mdash; at the cost of coupling inference to the streaming framework.</p>
+      </div>
+      <div class="card">
+        <p><strong class="accent2">In-memory analytics</strong></p>
+        <p style="font-size:0.95rem; margin-top:8px;">The consumer computes all statistics in ConcurrentHashMaps. Fast and zero-dependency, but state is lost on restart. In production, you'd persist to a time-series database.</p>
+      </div>
+      <div class="card">
+        <p><strong class="accent3">Schema-first contracts</strong></p>
+        <p style="font-size:0.95rem; margin-top:8px;">Each Kafka topic has a JSON Schema registered in Apicurio Registry <em>before</em> any data flows. Components can evolve independently as long as schemas remain compatible.</p>
+      </div>
+      <div class="card">
+        <p><strong class="accent4">Lazy model loading</strong></p>
+        <p style="font-size:0.95rem; margin-top:8px;">Models are loaded on first use, not at import time. This sidesteps PySpark's UDF serialization &mdash; it tries to pickle anything in scope, and neural network weights don't survive that.</p>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -697,6 +682,7 @@ spark-reddit-inference-driver               <span class="str">1/1     Running</s
     <div class="section-num">06</div>
     <h2>Dashboards</h2>
     <p>Real-time analytics served by Quarkus REST endpoints</p>
+    <p style="margin-top: 20px; font-size: 0.9rem; color: var(--text-dim);">&#9654; Switch to <strong class="accent">browser</strong></p>
   </div>
 </div>
 
