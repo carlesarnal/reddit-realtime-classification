@@ -9,6 +9,8 @@ COPY stop.txt .
 COPY nltk_data/ /usr/local/share/nltk_data/
 ENV NLTK_DATA="/usr/local/share/nltk_data"
 
-RUN pip install --no-cache-dir praw confluent-kafka[json] tldextract nltk pandas requests jsonschema
+COPY data/ /app/data/
+
+RUN pip install --no-cache-dir confluent-kafka[json] nltk pandas requests jsonschema
 
 CMD ["python", "-u", "reddit_posts_processor.py"]

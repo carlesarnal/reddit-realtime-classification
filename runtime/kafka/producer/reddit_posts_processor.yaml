@@ -20,18 +20,6 @@ spec:
           env:
             - name: KAFKA_BROKER
               value: "reddit-posts-kafka-bootstrap.reddit-realtime.svc:9093"
-            - name: REDDIT_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: reddit-api-credentials
-                  key: client-id
-            - name: REDDIT_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: reddit-api-credentials
-                  key: client-secret
-            - name: REDDIT_USER_AGENT
-              value: "predictions"
           resources:
             requests:
               memory: "256Mi"

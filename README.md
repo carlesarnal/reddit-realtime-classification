@@ -6,20 +6,24 @@ Presented at **OCXConf 2026** — [presentation slides](presentation.html)
 
 ## Architecture
 
-```
-Reddit API ──> Kafka Producer ──> [reddit-stream] ──> Spark Streaming
-                                       │                    │
-                               Apicurio Registry      Dual ML inference
-                              (schema governance)    (Transformer + sklearn)
-                                                         │
-                                                    [kafka-predictions]
-                                                         │
-                                                    Quarkus Consumer ──> Dashboard
+```mermaid
+graph LR
+    A[CSV Data] --> B[Kafka Producer]
+    B -->|validates schema| R[(Apicurio Registry)]
+    B --> C([reddit-stream])
+    C --> D[Spark Streaming]
+    D --> E[DistilRoBERTa]
+    D --> F[TF-IDF + LSA + LR]
+    E --> G([kafka-predictions])
+    F --> G
+    G --> H[Quarkus Consumer]
+    H -->|validates schema| R
+    H --> I[Dashboard]
 ```
 
 ### Pipeline Flow
 
-1. **Producer** — Python script polls Reddit API (r/AskEurope), cleans text (stopwords, lemmatization, URL removal), and publishes to `reddit-stream` Kafka topic.
+1. **Producer** — Python script reads pre-collected Reddit posts (r/AskEurope) from CSV files, cleans text (stopwords, lemmatization, URL removal), and streams them to the `reddit-stream` Kafka topic with a delay to simulate real-time ingestion.
 
 2. **Spark Inference** — Structured Streaming job reads from Kafka and applies two models in parallel via a PySpark UDF:
    - **Transformer**: Fine-tuned DistilRoBERTa (6 layers, 12 attention heads, 768 hidden dims)
@@ -63,7 +67,6 @@ The models classify posts into 13 categories: Work, Misc, Food, Personal, Meta, 
 - kubectl CLI
 - Helm (for Spark Operator)
 - Podman or Docker (for building images)
-- Reddit API credentials
 
 ### 1. Infrastructure
 
@@ -76,12 +79,6 @@ kubectl create namespace reddit-realtime
 
 # Install Strimzi Kafka Operator
 kubectl apply -f https://strimzi.io/install/latest?namespace=reddit-realtime -n reddit-realtime
-
-# Create Reddit API credentials secret
-kubectl create secret generic reddit-api-credentials \
-  --from-literal=client-id=YOUR_CLIENT_ID \
-  --from-literal=client-secret=YOUR_CLIENT_SECRET \
-  -n reddit-realtime
 
 # Wait for Strimzi, then deploy Kafka cluster
 kubectl wait --for=condition=available deployment/strimzi-cluster-operator -n reddit-realtime --timeout=120s
@@ -122,19 +119,19 @@ helm install spark-operator spark-operator/spark-operator \
   --set 'spark.jobNamespaces={spark-operator}' --wait
 ```
 
-### 2. Build & Load Container Images
+### 2. Build Container Images
+
+Build images directly inside Minikube's Docker daemon:
 
 ```bash
-# Build images (arm64 for Apple Silicon, remove --platform flag for x86)
-podman build --platform linux/arm64 -t reddit-producer:local -f runtime/kafka/producer/Dockerfile runtime/kafka/producer/
-podman build --platform linux/arm64 -t spark-inference:local -f runtime/spark/Dockerfile runtime/spark/
-cd runtime/kafka/consumer/flair-consumer && mvn package -DskipTests -q && \
-  podman build --platform linux/arm64 -t predictions-consumer:local -f src/main/docker/Dockerfile.jvm . && cd -
+# Point docker CLI at Minikube's Docker daemon
+eval $(minikube docker-env)
 
-# Load into Minikube
-minikube image load reddit-producer:local
-minikube image load spark-inference:local
-minikube image load predictions-consumer:local
+# Build all 3 images
+docker build -t reddit-producer:local -f runtime/kafka/producer/Dockerfile runtime/kafka/producer/
+docker build -t spark-inference:local -f runtime/spark/Dockerfile runtime/spark/
+cd runtime/kafka/consumer/flair-consumer && mvn package -DskipTests -q && \
+  docker build -t predictions-consumer:local -f src/main/docker/Dockerfile.jvm . && cd -
 ```
 
 ### 3. Deploy Pipeline
@@ -182,8 +179,9 @@ REGISTRY_URL=http://localhost:8081 schemas/register-schemas.sh
 │   ├── kafka/
 │   │   ├── kafka_cluster.yaml          # Strimzi Kafka cluster (KRaft mode, v4.1.0)
 │   │   ├── producer/
-│   │   │   ├── reddit_posts_processor.py   # Reddit → Kafka producer
+│   │   │   ├── reddit_posts_processor.py   # CSV → Kafka producer
 │   │   │   ├── cleaning.py                 # Text cleaning pipeline
+│   │   │   ├── data/                        # Pre-collected Reddit CSV files
 │   │   │   ├── Dockerfile
 │   │   │   └── reddit_posts_processor.yaml # K8s Deployment
 │   │   └── consumer/

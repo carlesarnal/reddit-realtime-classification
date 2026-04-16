@@ -1,9 +1,7 @@
 import os
-import praw
+import glob
 import json
 import time
-import datetime as dt
-import tldextract
 import pandas as pd
 
 from confluent_kafka import Producer
@@ -14,17 +12,10 @@ from confluent_kafka.schema_registry.json_schema import JSONSerializer
 # Import the cleaning functions from cleaning.py
 import cleaning
 
-# Reddit API Credentials
-reddit = praw.Reddit(
-    client_id=os.environ["REDDIT_CLIENT_ID"],
-    client_secret=os.environ["REDDIT_CLIENT_SECRET"],
-    user_agent=os.environ.get("REDDIT_USER_AGENT", "predictions")
-)
-
 # Kafka Configuration
 KAFKA_BROKER = os.environ.get("KAFKA_BROKER", "reddit-posts-kafka-bootstrap.reddit-realtime.svc:9093")
 KAFKA_TOPIC = "reddit-stream"
-POLL_INTERVAL = 300  # 5 minutes between cycles
+SEND_INTERVAL = 2  # seconds between messages (simulates real-time stream)
 
 # Apicurio Registry — Confluent-compatible API endpoint
 REGISTRY_URL = os.environ.get("REGISTRY_URL", "http://apicurio-registry.reddit-realtime.svc:8080")
@@ -59,93 +50,62 @@ producer = Producer({
 })
 print("Kafka producer connected successfully!")
 
-# Function to convert timestamp to human-readable format
-def get_date(created):
-    return dt.datetime.fromtimestamp(created).isoformat()
-
 def delivery_callback(err, msg):
     if err:
         print(f"Send failed: {err}")
     else:
         print(f"Sent to {msg.topic()} partition {msg.partition()} offset {msg.offset()}")
 
-# Flair categories to track
-flairs = ['Work', 'Misc', 'Food', 'Personal', 'Meta', 'Sports', 'Travel',
-          'Politics', 'Culture', 'History', 'Education', 'Language', 'Foreign']
+# Load all CSV files from the data directory
+DATA_DIR = "/app/data"
+csv_files = sorted(glob.glob(os.path.join(DATA_DIR, "*.csv")))
+print(f"Found {len(csv_files)} CSV files in {DATA_DIR}")
 
-# Track processed post IDs to avoid duplicates
-processed_ids = set()
+print("Streaming cleaned Reddit posts from CSV files to Kafka...")
 
-print("Streaming and cleaning Reddit posts to Kafka...")
-
-while True:
+for csv_file in csv_files:
+    print(f"Processing {os.path.basename(csv_file)}...")
     try:
-        subreddit = reddit.subreddit("AskEurope")
-
-        for flair in flairs:
-            new_posts = subreddit.search(query=f"flair:{flair}", time_filter="week", limit=200)
-
-            for submission in new_posts:
-                if submission.id in processed_ids:
-                    continue
-
-                processed_ids.add(submission.id)
-
-                # Extract post data
-                post_data = {
-                    "id": submission.id,
-                    "title": submission.title,
-                    "body": submission.selftext,
-                    "flair": submission.link_flair_text,
-                    "score": submission.score,
-                    "url": submission.url,
-                    "comments": [],
-                    "timestamp": submission.created,
-                    "comms_num": submission.num_comments,
-                }
-
-                # Extract domain
-                tld = tldextract.extract(submission.url)
-                domain = f"{tld.domain}.{tld.suffix}"
-                if submission.is_self:
-                    domain = "self-post"
-                elif domain == "youtu.be":
-                    domain = "youtube.com"
-                elif domain == "redd.it":
-                    domain = "reddit.com"
-                post_data["domain"] = domain
-
-                # Extract and concatenate top-level comments
-                submission.comments.replace_more(limit=10)
-                comment = ' '
-                for top_level_comment in submission.comments:
-                    comment += ' ' + top_level_comment.body
-                post_data["comments"].append(comment)
-
-                # Clean text using NLP pipeline
-                data = pd.DataFrame(post_data)
-                cleaning.clean_text(data, 'title')
-                cleaning.clean_text(data, 'body')
-                cleaning.clean_text(data, 'comments')
-                data['content'] = data.title + ' ' + data.body + ' ' + data.comments + ' ' + data.domain
-
-                msg = {
-                    "id": data['id'].iloc[0],
-                    "content": data['content'].iloc[0]
-                }
-
-                # Serialize with JSON Schema (validates + adds Confluent wire format header)
-                # and send to Kafka
-                producer.produce(
-                    topic=KAFKA_TOPIC,
-                    value=json_serializer(msg, SerializationContext(KAFKA_TOPIC, MessageField.VALUE)),
-                    on_delivery=delivery_callback
-                )
-                producer.poll(0)
-
-        producer.flush()
-        time.sleep(POLL_INTERVAL)
-
+        df = pd.read_csv(csv_file, dtype=str).fillna("")
     except Exception as e:
-        print(f"Error: {e}")
-        time.sleep(30)
+        print(f"Error reading {csv_file}: {e}")
+        continue
+
+    for _, row in df.iterrows():
+        try:
+            # Build a single-row DataFrame for the cleaning pipeline
+            post = pd.DataFrame([{
+                "id": row.get("id", "unknown"),
+                "title": row.get("title", ""),
+                "body": row.get("body", ""),
+                "comments": row.get("comments", ""),
+                "domain": row.get("domain", "self-post"),
+            }])
+
+            cleaning.clean_text(post, "title")
+            cleaning.clean_text(post, "body")
+            cleaning.clean_text(post, "comments")
+            post["content"] = post.title + " " + post.body + " " + post.comments + " " + post.domain
+
+            msg = {
+                "id": post["id"].iloc[0],
+                "content": post["content"].iloc[0],
+            }
+
+            producer.produce(
+                topic=KAFKA_TOPIC,
+                value=json_serializer(msg, SerializationContext(KAFKA_TOPIC, MessageField.VALUE)),
+                on_delivery=delivery_callback,
+            )
+            producer.poll(0)
+            time.sleep(SEND_INTERVAL)
+
+        except Exception as e:
+            print(f"Error processing post {row.get('id', '?')}: {e}")
+
+    producer.flush()
+    print(f"Finished {os.path.basename(csv_file)}")
+
+print("All CSV files processed. Sleeping indefinitely to keep pod alive...")
+while True:
+    time.sleep(3600)

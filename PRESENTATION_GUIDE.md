@@ -21,12 +21,6 @@ kubectl create namespace reddit-realtime
 # Install Strimzi operator
 kubectl apply -f https://strimzi.io/install/latest?namespace=reddit-realtime -n reddit-realtime
 
-# Create Reddit API credentials secret
-kubectl create secret generic reddit-api-credentials \
-  --from-literal=client-id=YOUR_REDDIT_CLIENT_ID \
-  --from-literal=client-secret=YOUR_REDDIT_CLIENT_SECRET \
-  -n reddit-realtime
-
 # Deploy Kafka cluster (wait for Strimzi operator to be ready first)
 kubectl wait --for=condition=available deployment/strimzi-cluster-operator -n reddit-realtime --timeout=120s
 kubectl apply -f runtime/kafka/kafka_cluster.yaml
@@ -68,19 +62,17 @@ helm install spark-operator spark-operator/spark-operator \
 
 ### Build container images (20 min before)
 
-Build arm64 images locally and load them into Minikube:
+Build images directly inside Minikube's Docker daemon to avoid stale image cache issues:
 
 ```bash
-# Build all 3 images
-podman build --platform linux/arm64 -t reddit-producer:local -f runtime/kafka/producer/Dockerfile runtime/kafka/producer/
-podman build --platform linux/arm64 -t spark-inference:local -f runtime/spark/Dockerfile runtime/spark/
-cd runtime/kafka/consumer/flair-consumer && mvn package -DskipTests -q && \
-  podman build --platform linux/arm64 -t predictions-consumer:local -f src/main/docker/Dockerfile.jvm . && cd -
+# Point docker CLI at Minikube's Docker daemon
+eval $(minikube docker-env)
 
-# Load into Minikube
-minikube image load reddit-producer:local
-minikube image load spark-inference:local
-minikube image load predictions-consumer:local
+# Build all 3 images
+docker build -t reddit-producer:local -f runtime/kafka/producer/Dockerfile runtime/kafka/producer/
+docker build -t spark-inference:local -f runtime/spark/Dockerfile runtime/spark/
+cd runtime/kafka/consumer/flair-consumer && mvn package -DskipTests -q && \
+  docker build -t predictions-consumer:local -f src/main/docker/Dockerfile.jvm . && cd -
 ```
 
 ### Pre-deploy the pipeline (15 min before)
@@ -150,7 +142,7 @@ kubectl get pods -n spark-operator
 **Show the architecture:**
 
 ```
-Reddit API ──> Kafka Producer ──> [reddit-stream] ──> Spark Streaming
+CSV Data ──> Kafka Producer ──> [reddit-stream] ──> Spark Streaming
                                        │                    │
                                Apicurio Registry      Dual ML inference
                               (schema governance)    (Transformer + sklearn)
@@ -229,7 +221,7 @@ kubectl apply -f runtime/kafka/producer/reddit_posts_processor.yaml
 
 **What to say:**
 
-- "This Python pod connects to the Reddit API, fetches posts from r/AskEurope, cleans the text — removes URLs, stopwords, does lemmatization — and sends them to Kafka."
+- "This Python pod reads pre-collected Reddit posts from r/AskEurope, cleans the text — removes URLs, stopwords, does lemmatization — and streams them to Kafka one by one, simulating a real-time feed."
 
 **In T2, tail the logs:**
 
@@ -257,7 +249,7 @@ Explain the data journey and key design decisions while data flows in the backgr
 
 Walk through the 4 stages:
 
-1. **Collect & clean** — Fetch posts from Reddit API, strip URLs/stopwords/punctuation, lemmatize, concatenate title + body + comments + domain.
+1. **Collect & clean** — Read pre-collected Reddit posts from CSV files, strip URLs/stopwords/punctuation, lemmatize, concatenate title + body + comments + domain.
 2. **Validate & stream** — Validate against JSON Schema in Apicurio Registry, publish to Kafka topic `reddit-stream`.
 3. **Dual inference** — Spark consumes in micro-batches, runs Transformer (tokenize → forward pass → softmax) and sklearn (TF-IDF → LSA → classify) in parallel, outputs both predictions + confidence scores.
 4. **Consume & analyze** — Quarkus consumer reads predictions, computes real-time statistics (agreement, confusion matrix, confidence distributions, uncertainty zones), serves dashboards via REST.
@@ -342,7 +334,7 @@ Multi-line chart with one line per flair showing daily frequency.
 | Spark job failing | Check driver: `kubectl logs spark-reddit-inference-driver -n spark-operator` |
 | Port-forward dropped | Re-run: `kubectl port-forward -n reddit-realtime svc/predictions-consumer 8080:80` |
 | Apicurio schemas lost | In-memory storage; re-register: `REGISTRY_URL=http://localhost:8081 schemas/register-schemas.sh` |
-| Producer CreateContainerConfigError | Secret missing: `kubectl create secret generic reddit-api-credentials ...` |
+| Producer CrashLoopBackOff | Check logs: `kubectl logs -f deployment/kafka-producer -n reddit-realtime` |
 | Empty charts | Wait 5+ min for data to flow through the full pipeline |
 
 ---
