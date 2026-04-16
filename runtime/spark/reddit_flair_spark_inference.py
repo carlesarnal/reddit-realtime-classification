@@ -113,7 +113,10 @@ df = spark.readStream \
     .option("maxOffsetsPerTrigger", "100") \
     .load()
 
-parsed_df = df.select(from_json(col("value").cast("string"), schema).alias("data")).select("data.*")
+# Strip the 5-byte Confluent wire format header (magic byte + 4-byte schema ID)
+# added by the Confluent JSON Schema serializer in the producer
+raw_json = col("value").substr(6, 2147483647).cast("string")
+parsed_df = df.select(from_json(raw_json, schema).alias("data")).select("data.*")
 
 # Apply dual-model inference
 predicted_df = parsed_df.withColumn("value", predict_udf(struct("id", "title", "content")))

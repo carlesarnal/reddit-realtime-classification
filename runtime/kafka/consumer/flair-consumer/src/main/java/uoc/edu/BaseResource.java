@@ -1,22 +1,64 @@
 package uoc.edu;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.networknt.schema.JsonSchema;
+import com.networknt.schema.JsonSchemaFactory;
+import com.networknt.schema.SpecVersion;
+import com.networknt.schema.ValidationMessage;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.reactive.messaging.annotations.Blocking;
 import io.smallrye.reactive.messaging.kafka.KafkaRecord;
 import io.vertx.core.json.JsonObject;
+import jakarta.annotation.PostConstruct;
 import jakarta.inject.Singleton;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import org.jboss.logging.Logger;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Singleton
 public class BaseResource {
 
     protected static final Logger LOG = Logger.getLogger(BaseResource.class);
+
+    @ConfigProperty(name = "apicurio.registry.url")
+    String registryUrl;
+
+    @ConfigProperty(name = "apicurio.registry.group-id")
+    String groupId;
+
+    @ConfigProperty(name = "apicurio.registry.artifact-id")
+    String artifactId;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private JsonSchema jsonSchema;
+
+    @PostConstruct
+    void loadSchema() {
+        try {
+            String url = registryUrl + "/apis/registry/v3/groups/" + groupId
+                    + "/artifacts/" + artifactId + "/versions/latest/content";
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012);
+            jsonSchema = factory.getSchema(response.body());
+            LOG.infof("Loaded schema '%s' from Apicurio Registry for validation", artifactId);
+        } catch (Exception e) {
+            LOG.warnf("Could not load schema from Apicurio Registry: %s. Validation disabled.", e.getMessage());
+        }
+    }
 
     protected static final Map<String, Integer> transformerCounts = new ConcurrentHashMap<>();
     protected static final Map<String, Integer> sklearnCounts = new ConcurrentHashMap<>();
@@ -45,6 +87,16 @@ public class BaseResource {
         LOG.infof("Received message: %s", record.getPayload());
 
         try {
+            // Validate against JSON Schema from Apicurio Registry
+            if (jsonSchema != null) {
+                JsonNode node = objectMapper.readTree(record.getPayload());
+                Set<ValidationMessage> errors = jsonSchema.validate(node);
+                if (!errors.isEmpty()) {
+                    LOG.warnf("Schema validation failed: %s", errors);
+                    return Uni.createFrom().nullItem();
+                }
+            }
+
             JsonObject json = new JsonObject(record.getPayload());
             String transformerFlair = json.getString("transformer_flair", "Unknown");
             double transformerConfidence = json.getDouble("transformer_confidence", 0.0);

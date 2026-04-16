@@ -6,7 +6,10 @@ import datetime as dt
 import tldextract
 import pandas as pd
 
-from kafka import KafkaProducer
+from confluent_kafka import Producer
+from confluent_kafka.serialization import SerializationContext, MessageField
+from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry.json_schema import JSONSerializer
 
 # Import the cleaning functions from cleaning.py
 import cleaning
@@ -23,26 +26,48 @@ KAFKA_BROKER = os.environ.get("KAFKA_BROKER", "reddit-posts-kafka-bootstrap.redd
 KAFKA_TOPIC = "reddit-stream"
 POLL_INTERVAL = 300  # 5 minutes between cycles
 
-# Initialize Kafka Producer
-producer = KafkaProducer(
-    bootstrap_servers=KAFKA_BROKER,
-    value_serializer=lambda v: json.dumps(v).encode("utf-8"),
-    acks="all",
-    retries=5,
-    request_timeout_ms=60000,
-    max_block_ms=60000
-)
+# Apicurio Registry — Confluent-compatible API endpoint
+REGISTRY_URL = os.environ.get("REGISTRY_URL", "http://apicurio-registry.reddit-realtime.svc:8080")
+REGISTRY_CCOMPAT_URL = REGISTRY_URL + "/apis/ccompat/v7"
+
+# JSON Schema for the reddit-stream topic value
+SCHEMA_STR = json.dumps({
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "urn:reddit:stream:value",
+    "title": "RedditStreamValue",
+    "type": "object",
+    "properties": {
+        "id": {"type": "string", "description": "Reddit post ID"},
+        "content": {"type": "string", "description": "Cleaned and concatenated post content"}
+    },
+    "required": ["id", "content"]
+})
+
+# Initialize Schema Registry client (using Apicurio's Confluent-compatible API)
+schema_registry_client = SchemaRegistryClient({"url": REGISTRY_CCOMPAT_URL})
+
+# Create JSON serializer — validates and encodes with schema ID (Confluent wire format)
+json_serializer = JSONSerializer(SCHEMA_STR, schema_registry_client)
+print(f"JSON Schema serializer connected to Apicurio Registry at {REGISTRY_CCOMPAT_URL}")
+
+# Initialize Confluent Kafka Producer
+producer = Producer({
+    "bootstrap.servers": KAFKA_BROKER,
+    "acks": "all",
+    "retries": 5,
+    "request.timeout.ms": 60000,
+})
 print("Kafka producer connected successfully!")
 
 # Function to convert timestamp to human-readable format
 def get_date(created):
     return dt.datetime.fromtimestamp(created).isoformat()
 
-def on_send_success(record_metadata):
-    print(f"Sent to {record_metadata.topic} partition {record_metadata.partition} offset {record_metadata.offset}")
-
-def on_send_error(excp):
-    print(f"Send failed: {excp}")
+def delivery_callback(err, msg):
+    if err:
+        print(f"Send failed: {err}")
+    else:
+        print(f"Sent to {msg.topic()} partition {msg.partition()} offset {msg.offset()}")
 
 # Flair categories to track
 flairs = ['Work', 'Misc', 'Food', 'Personal', 'Meta', 'Sports', 'Travel',
@@ -109,11 +134,16 @@ while True:
                     "content": data['content'].iloc[0]
                 }
 
-                # Send to Kafka
-                producer.send(KAFKA_TOPIC, value=msg) \
-                    .add_callback(on_send_success) \
-                    .add_errback(on_send_error)
+                # Serialize with JSON Schema (validates + adds Confluent wire format header)
+                # and send to Kafka
+                producer.produce(
+                    topic=KAFKA_TOPIC,
+                    value=json_serializer(msg, SerializationContext(KAFKA_TOPIC, MessageField.VALUE)),
+                    on_delivery=delivery_callback
+                )
+                producer.poll(0)
 
+        producer.flush()
         time.sleep(POLL_INTERVAL)
 
     except Exception as e:
