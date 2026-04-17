@@ -132,43 +132,44 @@ kubectl get pods -n spark-operator
 
 ## Part 1 — Introduction (5 min)
 
-**What to say:**
+### Slide 0: Title
 
-- Introduce yourself: Principal Software Engineer at IBM, working on Apicurio Registry.
-- Frame the problem: real-time data processing is critical in finance, social media, cybersecurity. Classifying content as it arrives is a common need.
-- Introduce the case study: classifying Reddit posts from r/AskEurope into 13 flair categories in real-time.
-- Emphasize: 100% open source stack, deployable on any Kubernetes cluster.
+- "Hi everyone, I'm Carles Arnal, Principal Software Engineer at IBM. I work on Apicurio Registry, which is an open source schema and API registry."
+- "Today I'm going to show you how to build a real-time content classification pipeline using only open source tools, running entirely on Kubernetes."
 
-**Show the architecture:**
+### Slide 1: The Problem
 
-```
-CSV Data ──> Kafka Producer ──> [reddit-stream] ──> Spark Streaming
-                                       │                    │
-                               Apicurio Registry      Dual ML inference
-                              (schema governance)    (Transformer + sklearn)
-                                                         │
-                                                    [kafka-predictions]
-                                                         │
-                                                    Quarkus Consumer ──> Dashboard
-```
+- "Real-time classification is everywhere. In finance, you need to detect fraud on transactions as they happen — you can't wait for a nightly batch job. In social media, content moderation and trend detection need to happen in seconds, not hours. In cybersecurity, threat classification has to be instantaneous."
+- "The common pattern across all these use cases is the same: data arrives continuously, and you need to classify it in real-time, not in batch."
 
-**Key talking points:**
+### Slide 2: Case Study
 
-- Two ML models run in parallel: a fine-tuned DistilRoBERTa transformer and Logistic Regression with TF-IDF + LSA.
-- Comparing two models gives richer insight: agreement rates, uncertainty zones, confusion matrices — without needing ground-truth labels.
-- Apicurio Registry enforces data contracts between components via JSON Schema.
-- Everything runs on Kubernetes using Strimzi (Kafka operator) and the Spark operator.
+- "For this talk, I'm using a concrete case study: classifying Reddit posts from r/AskEurope into 13 flair categories — things like Travel, Politics, Food, Culture, and so on."
+- "The entire stack is 100% open source. There's no proprietary component anywhere. You can deploy this on any Kubernetes cluster — Minikube, EKS, GKE, OpenShift — it doesn't matter."
+
+### Slide 3: Architecture
+
+- "Here's the architecture. We have pre-collected Reddit data that feeds into a Kafka producer. The producer validates messages against a JSON Schema stored in Apicurio Registry and publishes them to a Kafka topic called reddit-stream."
+- "Spark Structured Streaming picks up those messages in micro-batches and runs two ML models in parallel — a Transformer and a scikit-learn classifier. Both predictions, along with confidence scores, go into a second topic called kafka-predictions."
+- "Finally, a Quarkus consumer reads those predictions, computes real-time analytics, and serves six live dashboards."
+- "The key here is that two ML models run in parallel: a fine-tuned DistilRoBERTa transformer and a Logistic Regression with TF-IDF and LSA. Comparing two models gives us richer insight — agreement rates, uncertainty zones, confusion matrices — all without needing ground-truth labels."
+- "Apicurio Registry sits in the middle and enforces data contracts between components using JSON Schema. If someone changes the message format, the downstream components won't silently break."
+- "Everything runs on Kubernetes using operators: Strimzi for Kafka, the Spark Operator for Spark, and standard Kubernetes deployments for the rest."
 
 ---
 
 ## Part 2 — The ML Models (5 min)
 
-**What to say:**
+### Slide 4: Section divider
 
-- The transformer model is a fine-tuned DistilRoBERTa (6 layers, 12 attention heads, 768 hidden dimensions). Trained on labeled r/AskEurope posts.
-- The sklearn model uses TF-IDF vectorization, then LSA for dimensionality reduction, then Logistic Regression.
-- Both models output a predicted flair + a confidence score.
-- Running two different model families lets us measure agreement and identify uncertain predictions — a practical alternative to manual labeling.
+- "Let's talk about the two models we're running."
+
+### Slide 5: Dual Model Approach
+
+- "On the left, we have the Transformer model. It's a fine-tuned DistilRoBERTa — that's a distilled version of RoBERTa. It has 6 layers, 12 attention heads, and 768 hidden dimensions. We fine-tuned it on labeled r/AskEurope posts. It captures semantic context — it understands what a sentence *means*, not just what words appear in it."
+- "On the right, we have the scikit-learn model. This is a much simpler pipeline: TF-IDF vectorization to convert text into numerical features, then Truncated SVD — also known as LSA, Latent Semantic Analysis — for dimensionality reduction, and finally Logistic Regression as the classifier. It captures term frequency patterns — it cares about *which words* appear and how often."
+- "Both models output two things: a predicted flair category and a confidence score between 0 and 1."
+- "So why run two models? Because the agreement rate between them acts as a proxy for prediction reliability. When both models agree, we can be more confident the prediction is correct. When they disagree, that's a flag that the post is ambiguous or unusual. And we get all of this without needing any ground-truth labels in production."
 
 **Optionally show:**
 
@@ -179,37 +180,47 @@ CSV Data ──> Kafka Producer ──> [reddit-stream] ──> Spark Streaming
 
 ## Part 3 — Schema Governance with Apicurio Registry (5 min)
 
-**What to say:**
+### Slide 6: Section divider
 
-- Before data flows through the pipeline, we define contracts. Apicurio Registry stores and enforces JSON Schemas for our Kafka topics.
-- Two schemas: `reddit-stream-value` (producer output) and `kafka-predictions-value` (inference output).
-- This prevents schema drift — if someone changes the producer format, the consumer won't silently break.
-- Apicurio supports backward compatibility rules, so schemas can evolve safely.
+- "Before we get to the live demo, let's talk about schema governance — because in any data pipeline, the first thing that goes wrong is someone changing a message format without telling anyone."
 
-**What to show:**
+### Slide 7: Apicurio Registry
+
+- "This is where Apicurio Registry comes in. Before any data flows through the pipeline, we define contracts. We register JSON Schemas in Apicurio Registry for each Kafka topic."
+- "We have two schemas. The first one, reddit-stream-value, defines the producer output: an id field and a content field with the cleaned text. The second one, kafka-predictions-value, defines the inference output: the id, plus the transformer's flair prediction and confidence, and the sklearn's flair prediction and confidence."
+- "This prevents schema drift. If someone changes the producer to add a field, remove a field, or change a data type, the downstream consumers won't silently break — the schema validation will catch it."
+- "Apicurio also supports compatibility rules — backward, forward, or full compatibility — so schemas can evolve safely over time. You can add optional fields without breaking existing consumers."
+
+**What to show (in T1):**
 
 ```bash
 # Show registered schemas
 curl -s http://localhost:8081/apis/registry/v3/groups/reddit-realtime/artifacts | python3 -m json.tool
 ```
 
-- Briefly show `schemas/reddit-stream-value.json` and `schemas/kafka-predictions-value.json`.
+- "Let me show you the schemas that are registered. You can see both artifacts — reddit-stream-value and kafka-predictions-value — in the reddit-realtime group."
+- Optionally open `schemas/reddit-stream-value.json` and `schemas/kafka-predictions-value.json` in the editor to show the schema definitions.
 
 ---
 
 ## Part 4 — Live Demo: Start the Pipeline (10 min)
 
-### Show the pre-deployed state
+### Slide 8: Section divider
+
+- "Alright, time for the live demo. Let's start the pipeline and watch data flow in real-time."
+
+### Slide 9: Pre-deployed state
 
 **In T1:**
 
 ```bash
 kubectl get pods -n reddit-realtime
+kubectl get pods -n spark-operator
 ```
 
-**What to say:**
-
-- "We have Kafka (via Strimzi), Apicurio Registry, Spark, and the Quarkus consumer already running. The Spark job has loaded both ML models and is waiting for data. The only missing piece is the producer."
+- "Let me show you what's already running. We have the Strimzi cluster operator managing our Kafka cluster. We have the Kafka broker itself — reddit-posts — running in KRaft mode, no ZooKeeper. We have Apicurio Registry for schema governance. And we have the Quarkus predictions consumer, which is our dashboard backend."
+- "Over in the spark-operator namespace, we have the Spark operator and the inference driver with two executors. The Spark job has already loaded both ML models — the DistilRoBERTa transformer and the sklearn classifier — and it's sitting there waiting for data to arrive on the reddit-stream topic."
+- "The only missing piece is the producer. Once we deploy it, data starts flowing through the entire pipeline."
 
 ### Start the producer
 
@@ -219,9 +230,8 @@ kubectl get pods -n reddit-realtime
 kubectl apply -f runtime/kafka/producer/reddit_posts_processor.yaml
 ```
 
-**What to say:**
-
-- "This Python pod reads pre-collected Reddit posts from r/AskEurope, cleans the text — removes URLs, stopwords, does lemmatization — and streams them to Kafka one by one, simulating a real-time feed."
+- "Let's deploy the producer. This is a Python pod that reads pre-collected Reddit posts from r/AskEurope — we have thousands of real posts stored as CSV files. It cleans each post — removes URLs, strips stopwords, does lemmatization — and then streams them to Kafka one by one with a small delay, simulating a real-time feed."
+- "The producer uses the Confluent JSON Schema serializer, which validates every message against the schema stored in Apicurio Registry before sending it. If a message doesn't match the schema, it won't be sent."
 
 **In T2, tail the logs:**
 
@@ -229,143 +239,153 @@ kubectl apply -f runtime/kafka/producer/reddit_posts_processor.yaml
 kubectl logs -n reddit-realtime -f deployment/kafka-producer
 ```
 
-- Watch for log lines showing posts being sent to Kafka.
+- "Let's tail the producer logs in the other terminal. You should see the cleaning pipeline running on each post and then confirmation messages showing the partition and offset where each message was sent."
+- Wait for a few "Sent to reddit-stream partition X offset Y" lines to appear.
 
 ### Verify end-to-end flow
+
+**In T1 (wait ~60 seconds for Spark to process a micro-batch):**
 
 ```bash
 curl -s http://localhost:8080/flairs/statistics | python3 -m json.tool
 ```
 
-- Show the JSON: per-flair counts, average confidence for both models, agreement rates.
+- "Now let's check if predictions are flowing through the entire pipeline. I'll curl the statistics endpoint on the Quarkus consumer."
+- "And we can see data — per-flair counts, average confidence scores for both models, and agreement rates. The pipeline is working end-to-end: data went from CSV files, through Kafka, through Spark's dual-model inference, and into the Quarkus consumer — all in real-time."
 
 ---
 
 ## Part 5 — How It Works (5 min)
 
-Explain the data journey and key design decisions while data flows in the background. Share the GitHub repo link for anyone who wants to see the code.
+### Slide 11: Section divider
 
-### The Data Journey
+- "While data keeps flowing in the background, let me explain what's happening at each stage of the pipeline. If you want to see the code, the entire repo is on GitHub — I'll share the link at the end."
 
-Walk through the 4 stages:
+### Slide 12: Data Journey
 
-1. **Collect & clean** — Read pre-collected Reddit posts from CSV files, strip URLs/stopwords/punctuation, lemmatize, concatenate title + body + comments + domain.
-2. **Validate & stream** — Validate against JSON Schema in Apicurio Registry, publish to Kafka topic `reddit-stream`.
-3. **Dual inference** — Spark consumes in micro-batches, runs Transformer (tokenize → forward pass → softmax) and sklearn (TF-IDF → LSA → classify) in parallel, outputs both predictions + confidence scores.
-4. **Consume & analyze** — Quarkus consumer reads predictions, computes real-time statistics (agreement, confusion matrix, confidence distributions, uncertainty zones), serves dashboards via REST.
+- "Stage 1: Collect and clean. The producer reads pre-collected Reddit posts from CSV files. Each post goes through a cleaning pipeline — we strip URLs, remove stopwords, remove punctuation, lemmatize the text, and then concatenate the title, body, comments, and domain into a single content field. This gives the models a clean, unified input."
+- "Stage 2: Validate and stream. Before the message goes to Kafka, it's validated against the JSON Schema stored in Apicurio Registry using the Confluent JSON Schema serializer. Only valid messages make it to the reddit-stream topic."
+- "Stage 3: Dual inference. Spark Structured Streaming picks up messages in micro-batches. For each post, it runs two models in parallel inside a PySpark UDF. The transformer tokenizes the text, runs a forward pass through the neural network, and applies softmax to get probabilities. The sklearn model runs TF-IDF, then LSA for dimensionality reduction, then classifies with Logistic Regression. Both outputs — predicted flair plus confidence score — go into the kafka-predictions topic."
+- "Stage 4: Consume and analyze. The Quarkus consumer reads from kafka-predictions using SmallRye Reactive Messaging. It validates each message against the predictions schema from Apicurio Registry. Then it computes real-time statistics — agreement rates, confusion matrix, confidence distributions, uncertainty zones — all in-memory, and serves them via REST endpoints that power the dashboards."
 
-### Key Design Decisions
+### Slide 13: Design Decisions
 
-- **Inference inside Spark** — Models loaded once per executor as UDFs. Avoids model-serving hop latency.
-- **In-memory analytics** — ConcurrentHashMaps for speed. State lost on restart (production would use a time-series DB).
-- **Schema-first contracts** — JSON Schemas registered in Apicurio before data flows. Components evolve independently.
-- **Lazy model loading** — Models loaded on first use, not at import time. Sidesteps PySpark UDF serialization issues.
+- "Let me highlight four design decisions that are worth discussing."
+- "First, inference inside Spark. We run the models as PySpark UDFs rather than calling an external model server. This avoids network latency for each prediction and keeps the pipeline simple. The trade-off is that inference is coupled to the streaming framework."
+- "Second, in-memory analytics. The consumer keeps all statistics in Java ConcurrentHashMaps. It's fast and has zero dependencies, but state is lost on restart. In production, you'd persist to a time-series database like InfluxDB or TimescaleDB."
+- "Third, schema-first contracts. We register JSON Schemas in Apicurio Registry before any data flows. This means each component — the producer, Spark, and the consumer — can evolve independently as long as the schemas remain compatible."
+- "Fourth, lazy model loading. The Transformer and sklearn models are loaded on first use, not at import time. This is critical because PySpark tries to pickle UDF closures and serialize them to executors — and you can't pickle a neural network. By loading lazily inside the UDF function, the models only exist on the executors, never in the driver's serialization path."
 
 ---
 
 ## Part 6 — Dashboard Walkthrough (10 min)
 
-Switch to the browser. Dashboards auto-refresh, so data will appear live.
+### Slide 14: Section divider
 
-### Main Metrics (`/metrics.html`)
+- "Now let's switch to the browser and look at the dashboards. They auto-refresh, so you'll see the data updating live as the pipeline continues to process posts."
 
-5 bar charts: flair distribution, average confidence, model comparison, agreement rate, confidence gap.
+### Slide 15: Dashboard overview
 
-**What to say:**
+- "We have six dashboards, each showing a different angle on the pipeline. Let me walk through each one."
 
-- "This is the operational overview. You can immediately see which flairs are easy — high agreement, high confidence — and which are ambiguous."
-- "Notice how some flairs like Meta and Food have near-perfect agreement, while others like Work and Sports are harder for both models."
-- "The confidence gap chart shows how much the two models diverge — a large gap means one model is confident and the other is not."
+### Main Metrics (`/metrics.html`) — switch to browser tab 1
 
-### Confusion Matrix (`/confusion-matrix.html`)
+- "This is the operational overview — the first thing you'd look at to understand how the pipeline is performing."
+- "The first chart shows flair distribution — how many posts were classified into each category. You can see which categories are most common in r/AskEurope."
+- "The second chart shows average confidence for each flair. Higher confidence means the models are more sure about their predictions for that category."
+- "The third chart compares the two models side by side — transformer confidence in blue, sklearn in purple. You can immediately see where they diverge."
+- "The fourth chart is the agreement rate per flair. Notice how some flairs like Meta and Food have near-perfect agreement — both models find them easy. Others like Work and Sports are harder for both."
+- "The fifth chart shows the confidence gap — the average difference between the two models' confidence scores. A large gap means one model is confident and the other is guessing."
 
-D3.js heatmap — transformer predictions on X axis, sklearn on Y axis.
+### Confusion Matrix (`/confusion-matrix.html`) — switch to browser tab 2
 
-**What to say:**
+- "This is a D3.js heatmap showing the confusion matrix between the two models. The transformer's predictions are on the X axis, sklearn's on the Y axis."
+- "The diagonal shows agreement — both models predicted the same flair. The brighter the diagonal cell, the more often they agreed on that category."
+- "Off-diagonal cells reveal systematic differences. For example, if you see a bright cell where the transformer says Travel but sklearn says Culture, that means the sklearn model consistently confuses those two categories."
+- "This tells you *how* the models disagree, not just *how often* — which is critical for understanding their failure modes."
 
-- "The diagonal shows agreement — both models predicted the same flair."
-- "Off-diagonal cells reveal systematic differences. For example, if the transformer says 'Travel' but sklearn says 'Culture', that cell will light up."
-- "This helps you understand *how* the models disagree, not just *how often*."
+### Confidence Distribution (`/confidence-distribution.html`) — switch to browser tab 3
 
-### Confidence Distribution (`/confidence-distribution.html`)
+- "This is a stacked histogram comparing the confidence distributions of both models."
+- "Look at the transformer — it tends to be very polarized. Most of its predictions cluster in the highest confidence band, 0.9 to 1.0. It commits strongly to its choices. This is typical of neural networks with softmax outputs — the softmax function tends to push probability mass toward one class."
+- "Now look at the sklearn model — its confidence is spread much more evenly across the range. It hesitates more, especially on ambiguous posts. The logistic regression outputs calibrated probabilities that are more spread out."
+- "This is a fundamental difference between deep learning and linear models. The transformer gives you sharp, decisive predictions. The sklearn model gives you more nuanced, hedging predictions. Having both gives you a fuller picture."
 
-Stacked histogram comparing both models.
+### Model Uncertainty (`/model-uncertainty.html`) — switch to browser tab 4
 
-**What to say:**
+- "This is the most actionable chart in the entire pipeline. It's a doughnut chart with three zones."
+- "The green zone, Both Confident, means both models had confidence above 0.6. These are reliable predictions — you can trust them and act on them automatically."
+- "The orange zone, Both Uncertain, means both models had confidence below 0.6. These are genuinely hard examples — ambiguous text, posts that could belong to multiple categories, edge cases."
+- "The red zone, Disagreement, is the most interesting. One model is confident and the other is not. These are the best candidates for manual review or active learning — they're the posts where you'd get the most value from a human label."
+- "And here's the key insight of the whole pipeline: you get all of this — reliability assessment, uncertainty detection, review candidates — without any ground-truth labels in production. The models supervise each other."
 
-- "The transformer tends to be more polarized — very confident or not at all. Most predictions cluster in the highest confidence band."
-- "The sklearn model is more evenly distributed across confidence levels. It hesitates more, especially on ambiguous posts."
-- "This is typical of neural networks vs linear models — deep learning with softmax outputs tends to commit strongly, while linear models hedge."
+### Agreement Over Time (`/agreement-over-time.html`) — switch to browser tab 5
 
-### Model Uncertainty (`/model-uncertainty.html`)
+- "This line chart shows the agreement rate between the two models over time."
+- "If this line is stable, your models are performing consistently — the incoming data looks similar to what they were trained on."
+- "If you see agreement dropping over time, that's a strong signal of data drift. It means the incoming data is shifting away from the training distribution, and the models are starting to disagree more."
+- "In production, you'd set an alert on this metric. A sustained drop below a threshold should trigger a retraining cycle."
 
-Doughnut chart with three zones: Both Confident (green), Both Uncertain (orange), Disagreement (crimson).
+### Flair Drift (`/flair-drift.html`) — switch to browser tab 6
 
-**What to say:**
-
-- "This is the most actionable chart in the entire pipeline."
-- "**Both Confident** (green) — both models above 0.6 confidence. These are reliable predictions you can trust."
-- "**Both Uncertain** (orange) — both models below 0.6. These are genuinely hard examples — ambiguous text, edge cases."
-- "**Disagreement** (crimson) — one model is confident, the other is not. These are the best candidates for manual review or active learning."
-- "The key insight: you get all of this **without ground-truth labels** in production. The models supervise each other."
-
-### Agreement Over Time (`/agreement-over-time.html`)
-
-Line chart showing daily agreement rate.
-
-**What to say:**
-
-- "If agreement drops over time, it could signal data drift — the incoming data is shifting away from what the models were trained on."
-- "A stable agreement rate means the models are performing consistently."
-- "In production, you'd set alerts on this metric."
-
-### Flair Drift (`/flair-drift.html`)
-
-Multi-line chart with one line per flair showing daily frequency.
-
-**What to say:**
-
-- "This helps detect data drift at the category level."
-- "A sudden spike or drop in a specific flair might reflect a real-world event — e.g., a political event could spike 'Politics' posts."
-- "If the distribution shifts significantly from what the models were trained on, it's time to retrain."
+- "This is a multi-line chart with one line per flair category, showing daily frequency."
+- "This helps you detect data drift at the category level. If a specific flair suddenly spikes or drops, something changed in the incoming data."
+- "For example, a political event could cause a spike in Politics posts. A seasonal trend could shift Travel or Food patterns. If the distribution shifts significantly from what the models were trained on, it's time to retrain."
+- "This chart combined with the agreement trend gives you a complete data drift monitoring system — and it's all computed in real-time by the Quarkus consumer."
 
 ---
 
 ## Part 7 — Conclusions (5 min)
 
-### What the pipeline revealed
+### Slide 16: Key Insight — Uncertainty zones
 
-Walk through the 4 observations from the live data:
+- "Before we wrap up, I want to highlight the most important takeaway from the dashboards."
+- "The uncertainty zone chart divides every prediction into three buckets. Both Confident is your green zone — reliable, automated. Both Uncertain is your orange zone — these are hard for everyone. But the Disagreement zone, in red, is the gold mine."
+- "When one model is confident and the other is not, that's the strongest signal that something interesting is happening with that post. Maybe it's an edge case between two categories. Maybe one model learned a pattern the other didn't."
+- "These disagreement cases are exactly the posts you should send for manual review or use for active learning to improve both models. And you identify them without any ground-truth labels — the models supervise each other."
 
-- **The transformer is highly confident** — the neural network concentrates most predictions in the highest confidence band. It commits strongly to its choices. This is typical of deep learning models with softmax outputs.
-- **sklearn is more cautious and distributed** — the linear model spreads confidence across a wider range. It hesitates more, especially on ambiguous posts. Different model families exhibit fundamentally different confidence profiles.
-- **Agreement depends heavily on the category** — some flairs (Food, Politics, Meta) show strong agreement — both models find them easy. Others (Work, Sports, Personal) are harder. This tells us where our training data or feature engineering may need improvement.
-- **Disagreement is the most valuable signal** — posts where one model is confident and the other is not are the best candidates for manual review and active learning — all without requiring ground-truth labels in production.
+### Slide 17: What the pipeline revealed
+
+- "So what did we actually learn from running this pipeline on live data? Four things."
+- "First, the transformer is highly confident. The neural network concentrates almost all its predictions in the top confidence band. When it makes a prediction, it commits fully. This is typical of deep learning models with softmax outputs — the softmax function tends to push probability mass toward one class."
+- "Second, the sklearn model is more cautious and distributed. The linear model spreads its confidence across a much wider range. It hesitates more, especially on ambiguous posts. This isn't a weakness — it's a fundamentally different confidence profile. Different model families behave differently, and that difference is exactly what makes dual-model inference valuable."
+- "Third, agreement depends heavily on the category. Some flairs — like Food, Meta, and Politics — show strong agreement. Both models find them easy to classify. Others — like Work, Sports, and Personal — are consistently harder. This tells us where our training data or feature engineering may need improvement."
+- "Fourth, and most importantly, disagreement is the most valuable signal. Posts where one model is confident and the other is not are the best candidates for manual review and active learning. You can identify your most informative examples — the ones where a human label would help the most — entirely automatically, without any ground-truth labels in production."
 
 ---
 
 ## Part 8 — Production Considerations & Wrap Up (5 min)
 
-### Production hardening
+### Slide 18: Section divider
 
-- **Observability:** In production, add Prometheus + Grafana for metrics and Jaeger for distributed tracing. Quarkus has built-in support for all three.
-- **Failure handling:** The consumer uses SmallRye's Dead Letter Queue for failed messages. In production, add DLQs at every pipeline stage. Exponential backoff with jitter and circuit breaker patterns.
-- **Scaling:** Kafka topics can be partitioned for parallel processing. Spark executors scale horizontally. The Quarkus consumer can be replicated.
-- **Schema evolution:** Apicurio Registry supports backward/forward compatibility rules, so schemas can evolve without breaking consumers.
+- "This was a demo, so let's talk about what you'd add to take this to production."
 
-### Extensibility
+### Slide 19: Production hardening
 
-- **Swap the source** — Reddit is just one example. The same pipeline works with Twitter, IoT sensors, application logs, internal databases, webhooks.
-- **Swap the models** — DistilRoBERTa could be replaced with BERT, GPT, or any HuggingFace model. The sklearn model could be swapped for XGBoost or any classifier.
-- **Swap the target** — instead of a dashboard, predictions could feed alerts, databases, or downstream services.
-- **All open source** — Strimzi, Spark Operator, Quarkus, Kafka, Apicurio Registry, PyTorch, scikit-learn — no vendor lock-in.
+- "Observability. In production, you'd add Prometheus and Grafana for metrics — things like message throughput, inference latency, consumer lag. And Jaeger for distributed tracing so you can follow a single message through the entire pipeline. Quarkus has built-in support for all three — it's just a matter of adding the extensions."
+- "Failure handling. The consumer already uses SmallRye's Dead Letter Queue — if a message fails to process, it goes to a DLQ topic instead of blocking the pipeline. In production, you'd add DLQs at every stage. You'd also add exponential backoff with jitter for retries, and circuit breaker patterns to handle downstream failures gracefully."
+- "Scaling. Kafka topics can be partitioned for parallel processing — we used 3 partitions in this demo, but you could use dozens. Spark executors scale horizontally — add more executors to process more micro-batches in parallel. The Quarkus consumer can be replicated behind a load balancer."
+- "Schema evolution. Apicurio Registry supports backward and forward compatibility rules. This means you can safely add optional fields to a schema without breaking existing consumers. You can enforce that every schema change is backward-compatible before it's allowed."
 
-### Key takeaways
+### Slide 20: Extensibility
 
-1. Building real-time ML pipelines with open source is achievable and practical.
-2. Running dual models provides richer observability than a single model — each model family exposes the other's blind spots.
-3. Schema governance (Apicurio Registry) prevents silent contract violations as the pipeline evolves.
-4. Kubernetes operators (Strimzi, Spark) turn complex distributed systems into declarative YAML.
+- "One thing I want to emphasize is that the pipeline pattern is completely reusable. Reddit is just the data source we used for this demo."
+- "You can swap the source — the same pipeline works with Twitter, IoT sensors, application logs, internal databases, webhooks. Any event source that can produce messages to Kafka."
+- "You can swap the models — DistilRoBERTa could be replaced with BERT, GPT, or any HuggingFace model. The sklearn model could be swapped for XGBoost, Random Forest, or any classifier."
+- "You can swap the target — instead of a dashboard, predictions could feed alerting systems, write to a database, or trigger downstream services."
+- "And everything in this stack is open source. Strimzi, Spark Operator, Quarkus, Kafka, Apicurio Registry, PyTorch, scikit-learn — no vendor lock-in. You own the entire pipeline."
+
+### Slide 21: Key Takeaways
+
+- "Let me wrap up with four key takeaways."
+- "One: building real-time ML pipelines with open source is achievable and practical. You don't need expensive proprietary tools. Everything you saw today is free and open source."
+- "Two: running dual models provides richer observability than a single model. Each model family exposes the other's blind spots. You get agreement rates, uncertainty zones, and confusion matrices — all without ground-truth labels."
+- "Three: schema governance with Apicurio Registry prevents silent contract violations. As your pipeline evolves — and it will — the schemas ensure that changes don't break downstream components."
+- "Four: Kubernetes operators like Strimzi and the Spark Operator turn complex distributed systems into declarative YAML. You describe what you want, and the operator handles the rest."
+
+### Slide 22: Thank You
+
+- "Thank you. The entire code is on GitHub — I'll share the link. Happy to take any questions."
 
 ---
 
