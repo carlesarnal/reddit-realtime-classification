@@ -401,20 +401,20 @@
 </div>
 
 <!-- =========== SLIDE 3: ARCHITECTURE =========== -->
-<div class="slide" data-notes="Walk through the architecture. Reddit API feeds the producer, which publishes to Kafka. Apicurio Registry enforces schemas. Spark runs dual inference. Quarkus consumer serves dashboards.">
+<div class="slide" data-notes="Walk through the architecture. Pre-collected Reddit data feeds the producer, which publishes to Kafka. Apicurio Registry enforces schemas. Spark runs dual inference. Quarkus consumer serves dashboards.">
   <div class="content">
     <h3>Architecture</h3>
     <h2>End-to-end pipeline</h2>
 
     <div class="arch-diagram" style="margin-top: 36px;">
       <div class="arch-node highlight4">
-        <div class="node-title">Reddit API</div>
-        <div class="node-sub">r/AskEurope</div>
+        <div class="node-title">CSV Data</div>
+        <div class="node-sub">r/AskEurope posts</div>
       </div>
       <div class="arch-arrow"><span class="flow-dot"></span> <span class="flow-dot"></span> <span class="flow-dot"></span></div>
       <div class="arch-node">
         <div class="node-title">Kafka Producer</div>
-        <div class="node-sub">Python + PRAW</div>
+        <div class="node-sub">Python + Confluent</div>
       </div>
       <div class="arch-arrow"><span class="flow-dot"></span> <span class="flow-dot"></span> <span class="flow-dot"></span></div>
 
@@ -578,7 +578,7 @@ spark-reddit-inference-driver               <span class="str">1/1     Running</s
 </div>
 
 <!-- =========== SLIDE 10: START PRODUCER =========== -->
-<div class="slide" data-notes="Deploy the producer with kubectl apply. Then tail the logs. Watch for posts being fetched from Reddit and sent to Kafka. Then curl the statistics endpoint.">
+<div class="slide" data-notes="Deploy the producer with kubectl apply. Then tail the logs. Watch for posts being cleaned and sent to Kafka. Then curl the statistics endpoint to verify predictions are flowing.">
   <div class="content">
     <h3>Start data flow</h3>
     <h2>Deploy the Kafka producer</h2>
@@ -622,7 +622,7 @@ spark-reddit-inference-driver               <span class="str">1/1     Running</s
         <div style="min-width: 40px; text-align: center;"><span class="badge badge-orange">1</span></div>
         <div>
           <p><strong>Collect &amp; clean</strong></p>
-          <p style="font-size:0.95rem;">Fetch posts from Reddit API &rarr; strip URLs, stopwords, punctuation &rarr; lemmatize &rarr; concatenate title + body + comments + domain into a single content field</p>
+          <p style="font-size:0.95rem;">Read pre-collected Reddit posts from CSV &rarr; strip URLs, stopwords, punctuation &rarr; lemmatize &rarr; concatenate title + body + comments + domain into a single content field</p>
         </div>
       </div>
       <div class="card" style="margin-bottom: 16px; display: flex; align-items: center; gap: 24px;">

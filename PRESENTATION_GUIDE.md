@@ -271,57 +271,101 @@ Switch to the browser. Dashboards auto-refresh, so data will appear live.
 
 5 bar charts: flair distribution, average confidence, model comparison, agreement rate, confidence gap.
 
-**Say:** "This is the operational overview. You can immediately see which flairs are easy (high agreement, high confidence) and which are ambiguous."
+**What to say:**
+
+- "This is the operational overview. You can immediately see which flairs are easy — high agreement, high confidence — and which are ambiguous."
+- "Notice how some flairs like Meta and Food have near-perfect agreement, while others like Work and Sports are harder for both models."
+- "The confidence gap chart shows how much the two models diverge — a large gap means one model is confident and the other is not."
 
 ### Confusion Matrix (`/confusion-matrix.html`)
 
 D3.js heatmap — transformer predictions on X axis, sklearn on Y axis.
 
-**Say:** "The diagonal shows agreement. Off-diagonal cells reveal systematic differences between the models."
+**What to say:**
+
+- "The diagonal shows agreement — both models predicted the same flair."
+- "Off-diagonal cells reveal systematic differences. For example, if the transformer says 'Travel' but sklearn says 'Culture', that cell will light up."
+- "This helps you understand *how* the models disagree, not just *how often*."
 
 ### Confidence Distribution (`/confidence-distribution.html`)
 
 Stacked histogram comparing both models.
 
-**Say:** "The transformer tends to be more polarized — very confident or not at all. The sklearn model is more evenly distributed. This is typical of neural networks vs linear models."
+**What to say:**
+
+- "The transformer tends to be more polarized — very confident or not at all. Most predictions cluster in the highest confidence band."
+- "The sklearn model is more evenly distributed across confidence levels. It hesitates more, especially on ambiguous posts."
+- "This is typical of neural networks vs linear models — deep learning with softmax outputs tends to commit strongly, while linear models hedge."
 
 ### Model Uncertainty (`/model-uncertainty.html`)
 
 Doughnut chart with three zones: Both Confident (green), Both Uncertain (orange), Disagreement (crimson).
 
-**Say:** "This is the most actionable chart. The 'disagreement' zone highlights posts where one model is confident but the other isn't — candidates for manual review or retraining."
+**What to say:**
+
+- "This is the most actionable chart in the entire pipeline."
+- "**Both Confident** (green) — both models above 0.6 confidence. These are reliable predictions you can trust."
+- "**Both Uncertain** (orange) — both models below 0.6. These are genuinely hard examples — ambiguous text, edge cases."
+- "**Disagreement** (crimson) — one model is confident, the other is not. These are the best candidates for manual review or active learning."
+- "The key insight: you get all of this **without ground-truth labels** in production. The models supervise each other."
 
 ### Agreement Over Time (`/agreement-over-time.html`)
 
 Line chart showing daily agreement rate.
 
-**Say:** "If agreement drops over time, it could signal data drift."
+**What to say:**
+
+- "If agreement drops over time, it could signal data drift — the incoming data is shifting away from what the models were trained on."
+- "A stable agreement rate means the models are performing consistently."
+- "In production, you'd set alerts on this metric."
 
 ### Flair Drift (`/flair-drift.html`)
 
 Multi-line chart with one line per flair showing daily frequency.
 
-**Say:** "This helps detect data drift. A sudden spike or drop might reflect a real-world event or a change in subreddit behavior."
+**What to say:**
+
+- "This helps detect data drift at the category level."
+- "A sudden spike or drop in a specific flair might reflect a real-world event — e.g., a political event could spike 'Politics' posts."
+- "If the distribution shifts significantly from what the models were trained on, it's time to retrain."
 
 ---
 
-## Part 7 — Production Considerations & Wrap Up (5 min)
+## Part 7 — Conclusions (5 min)
 
-**What to say:**
+### What the pipeline revealed
+
+Walk through the 4 observations from the live data:
+
+- **The transformer is highly confident** — the neural network concentrates most predictions in the highest confidence band. It commits strongly to its choices. This is typical of deep learning models with softmax outputs.
+- **sklearn is more cautious and distributed** — the linear model spreads confidence across a wider range. It hesitates more, especially on ambiguous posts. Different model families exhibit fundamentally different confidence profiles.
+- **Agreement depends heavily on the category** — some flairs (Food, Politics, Meta) show strong agreement — both models find them easy. Others (Work, Sports, Personal) are harder. This tells us where our training data or feature engineering may need improvement.
+- **Disagreement is the most valuable signal** — posts where one model is confident and the other is not are the best candidates for manual review and active learning — all without requiring ground-truth labels in production.
+
+---
+
+## Part 8 — Production Considerations & Wrap Up (5 min)
+
+### Production hardening
 
 - **Observability:** In production, add Prometheus + Grafana for metrics and Jaeger for distributed tracing. Quarkus has built-in support for all three.
-- **Failure handling:** The consumer uses SmallRye's Dead Letter Queue for failed messages. In production, add DLQs at every pipeline stage.
+- **Failure handling:** The consumer uses SmallRye's Dead Letter Queue for failed messages. In production, add DLQs at every pipeline stage. Exponential backoff with jitter and circuit breaker patterns.
 - **Scaling:** Kafka topics can be partitioned for parallel processing. Spark executors scale horizontally. The Quarkus consumer can be replicated.
 - **Schema evolution:** Apicurio Registry supports backward/forward compatibility rules, so schemas can evolve without breaking consumers.
-- **Extensibility:** Swap Reddit for any event source (Twitter, IoT, logs). Swap the models. The pipeline pattern is the same.
-- **All open source:** Strimzi, Spark Operator, Quarkus, Kafka, Apicurio Registry, PyTorch, scikit-learn — no vendor lock-in.
 
-**Key takeaways:**
+### Extensibility
+
+- **Swap the source** — Reddit is just one example. The same pipeline works with Twitter, IoT sensors, application logs, internal databases, webhooks.
+- **Swap the models** — DistilRoBERTa could be replaced with BERT, GPT, or any HuggingFace model. The sklearn model could be swapped for XGBoost or any classifier.
+- **Swap the target** — instead of a dashboard, predictions could feed alerts, databases, or downstream services.
+- **All open source** — Strimzi, Spark Operator, Quarkus, Kafka, Apicurio Registry, PyTorch, scikit-learn — no vendor lock-in.
+
+### Key takeaways
 
 1. Building real-time ML pipelines with open source is achievable and practical.
-2. Running dual models provides richer observability than a single model.
-3. Schema governance (Apicurio Registry) prevents silent contract violations.
-4. Kubernetes operators (Strimzi, Spark) simplify deployment and operations.
+2. Running dual models provides richer observability than a single model — each model family exposes the other's blind spots.
+3. Schema governance (Apicurio Registry) prevents silent contract violations as the pipeline evolves.
+4. Kubernetes operators (Strimzi, Spark) turn complex distributed systems into declarative YAML.
 
 ---
 
@@ -349,4 +393,5 @@ Multi-line chart with one line per flair showing daily frequency.
 | Live Demo: Start Pipeline | 10 min | 25 min |
 | How It Works | 5 min | 30 min |
 | Dashboard Walkthrough | 10 min | 40 min |
-| Production & Wrap Up | 5 min | 45 min |
+| Conclusions | 5 min | 45 min |
+| Production & Wrap Up | 5 min | 50 min |
