@@ -266,6 +266,14 @@
   .dash-card {
     background: var(--bg-card); border: 1px solid var(--border);
     border-radius: 12px; padding: 24px; text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    text-decoration: none;
+    display: block;
+  }
+  .dash-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 16px rgba(79,143,247,0.15);
   }
   .dash-card .dash-icon { font-size: 2rem; margin-bottom: 12px; }
   .dash-card .dash-title { font-size: 0.95rem; font-weight: 600; color: var(--text); margin-bottom: 6px; }
@@ -313,6 +321,93 @@
     font-weight: 600;
     color: var(--text);
     display: flex; align-items: center; gap: 8px;
+  }
+
+  /* ---- Embedded terminal ---- */
+  .terminal-container {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    width: 100%;
+    height: 340px;
+  }
+  .terminal-container.single {
+    height: 400px;
+  }
+  .terminal-pane {
+    flex: 1;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    background: #000;
+  }
+  .terminal-pane iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+  .terminal-label {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--text-dim);
+    background: rgba(0,0,0,0.7);
+    padding: 2px 10px;
+    border-radius: 8px;
+    z-index: 10;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* ---- Copy command button ---- */
+  .cmd-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .cmd-row code {
+    flex: 1;
+    font-size: 0.82rem;
+    padding: 6px 12px;
+    border-radius: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .cmd-row .cmd-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--accent4);
+    min-width: 24px;
+    flex-shrink: 0;
+  }
+  .copy-btn {
+    background: rgba(79,143,247,0.15);
+    border: 1px solid rgba(79,143,247,0.3);
+    color: var(--accent);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.2s, border-color 0.2s;
+    letter-spacing: 0.03em;
+  }
+  .copy-btn:hover {
+    background: rgba(79,143,247,0.3);
+    border-color: var(--accent);
+  }
+  .copy-btn.copied {
+    background: rgba(52,211,153,0.2);
+    border-color: var(--accent3);
+    color: var(--accent3);
   }
 
   /* ---- Speaker notes (hidden by default, toggle with 'n') ---- */
@@ -551,55 +646,59 @@
   </div>
 </div>
 
-<!-- =========== SLIDE 9: PIPELINE STATE =========== -->
-<div class="slide" data-notes="Show kubectl get pods. Kafka, Apicurio, Spark, and Quarkus consumer are already running. The producer is the missing piece. Deploy it now.">
+<!-- =========== SLIDE 9: PIPELINE STATE (live terminal) =========== -->
+<div class="slide" data-notes="Run kubectl get pods in T1 to show the pre-deployed state. All pods should be Running. Then explain: Kafka, Apicurio, Spark, consumer are ready. The producer is the missing piece.">
   <div class="content">
     <h3>Pre-deployed state</h3>
     <h2>The pipeline is warm and waiting</h2>
-    <pre style="margin-top: 28px; font-size: 0.88rem;">
-<span class="cmt">$ kubectl get pods -n reddit-realtime</span>
-
-NAME                                        READY   STATUS    AGE
-strimzi-cluster-operator-xxxxx              <span class="str">1/1     Running</span>   15m
-reddit-posts-dual-role-0                    <span class="str">1/1     Running</span>   12m
-apicurio-registry-xxxxx                     <span class="str">1/1     Running</span>   11m
-predictions-consumer-xxxxx                  <span class="str">1/1     Running</span>   10m
-
-<span class="cmt">$ kubectl get pods -n spark-operator</span>
-
-spark-operator-xxxxx                        <span class="str">1/1     Running</span>   14m
-spark-reddit-inference-driver               <span class="str">1/1     Running</span>   10m
-    </pre>
-    <div style="text-align: center; margin-top: 24px;">
-      <p style="font-size: 1.2rem;">Everything is running. Now let's start the <strong class="accent4">producer</strong>.</p>
+    <div class="terminal-container single">
+      <div class="terminal-pane">
+        <span class="terminal-label">T1 &mdash; kubectl</span>
+        <iframe src="http://localhost:7681"></iframe>
+      </div>
     </div>
-    <p style="text-align:center; margin-top: 16px; font-size: 0.9rem; color: var(--text-dim);">&#9654; Switch to <strong class="accent4">Terminal 1</strong> &mdash; kubectl commands</p>
+    <div style="margin-top: 12px;">
+      <div class="cmd-row">
+        <code>kubectl get pods -n reddit-realtime &amp;&amp; kubectl get pods -n spark-operator</code>
+        <button class="copy-btn" onclick="copyCmd(this, 'kubectl get pods -n reddit-realtime && kubectl get pods -n spark-operator')">Copy</button>
+      </div>
+      <p style="text-align: center; font-size: 1.05rem; margin-top: 12px;">Everything is running. Now let's start the <strong class="accent4">producer</strong>.</p>
+    </div>
   </div>
 </div>
 
-<!-- =========== SLIDE 10: START PRODUCER =========== -->
-<div class="slide" data-notes="Deploy the producer with kubectl apply. Then tail the logs. Watch for posts being cleaned and sent to Kafka. Then curl the statistics endpoint to verify predictions are flowing.">
+<!-- =========== SLIDE 10: START PRODUCER (live terminals) =========== -->
+<div class="slide" data-notes="In T1: kubectl apply -f runtime/kafka/producer/reddit_posts_processor.yaml, then curl the stats. In T2: kubectl logs -n reddit-realtime -f deployment/kafka-producer. Wait for 'Sent to' lines, then curl statistics endpoint in T1.">
   <div class="content">
     <h3>Start data flow</h3>
     <h2>Deploy the Kafka producer</h2>
-    <pre style="margin-top: 24px;">
-<span class="cmt"># Deploy the producer</span>
-<span class="fn">$</span> kubectl apply -f runtime/kafka/producer/reddit_posts_processor.yaml
-
-<span class="cmt"># Watch the logs</span>
-<span class="fn">$</span> kubectl logs -n reddit-realtime -f deployment/kafka-producer
-
-<span class="str">Kafka producer connected successfully!</span>
-<span class="str">Streaming and cleaning Reddit posts to Kafka...</span>
-<span class="str">Sent to reddit-stream partition 0 offset 0</span>
-<span class="str">Sent to reddit-stream partition 0 offset 1</span>
-<span class="str">...</span>
-    </pre>
-    <pre style="margin-top: 20px;">
-<span class="cmt"># Verify predictions are flowing</span>
-<span class="fn">$</span> curl -s http://localhost:8080/flairs/statistics | python3 -m json.tool
-    </pre>
-    <p style="text-align:center; margin-top: 16px; font-size: 0.9rem; color: var(--text-dim);">&#9654; <strong class="accent4">T1</strong>: deploy &amp; curl &nbsp;|&nbsp; <strong class="accent4">T2</strong>: tail producer logs</p>
+    <div class="terminal-container">
+      <div class="terminal-pane">
+        <span class="terminal-label">T1 &mdash; deploy &amp; verify</span>
+        <iframe src="http://localhost:7681"></iframe>
+      </div>
+      <div class="terminal-pane">
+        <span class="terminal-label">T2 &mdash; producer logs</span>
+        <iframe src="http://localhost:7682"></iframe>
+      </div>
+    </div>
+    <div style="margin-top: 10px;">
+      <div class="cmd-row">
+        <span class="cmd-label">T1</span>
+        <code>kubectl apply -f runtime/kafka/producer/reddit_posts_processor.yaml</code>
+        <button class="copy-btn" onclick="copyCmd(this, 'kubectl apply -f runtime/kafka/producer/reddit_posts_processor.yaml')">Copy</button>
+      </div>
+      <div class="cmd-row">
+        <span class="cmd-label">T2</span>
+        <code>kubectl logs -n reddit-realtime -f deployment/kafka-producer</code>
+        <button class="copy-btn" onclick="copyCmd(this, 'kubectl logs -n reddit-realtime -f deployment/kafka-producer')">Copy</button>
+      </div>
+      <div class="cmd-row">
+        <span class="cmd-label">T1</span>
+        <code>curl -s http://localhost:8080/flairs/statistics | python3 -m json.tool</code>
+        <button class="copy-btn" onclick="copyCmd(this, 'curl -s http://localhost:8080/flairs/statistics | python3 -m json.tool')">Copy</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -687,43 +786,33 @@ spark-reddit-inference-driver               <span class="str">1/1     Running</s
 </div>
 
 <!-- =========== SLIDE 16: DASHBOARD OVERVIEW =========== -->
-<div class="slide" data-notes="Walk through each dashboard in the browser. Main metrics, confusion matrix, confidence distribution, uncertainty zones, agreement over time, flair drift.">
+<div class="slide" data-notes="Walk through each dashboard in the browser. Main metrics, confusion matrix, confidence distribution, uncertainty zones.">
   <div class="content">
     <h3>Live Dashboards</h3>
-    <h2>Six views into the pipeline</h2>
-    <div class="dash-grid">
-      <div class="dash-card">
+    <h2>Four views into the pipeline</h2>
+    <div class="dash-grid" style="grid-template-columns: 1fr 1fr;">
+      <a class="dash-card" href="http://localhost:8080/metrics.html" target="_blank" onclick="event.stopPropagation();">
         <div class="dash-icon" style="color: var(--accent);">&boxbox;</div>
         <div class="dash-title">Main Metrics</div>
         <div class="dash-desc">Flair distribution, confidence,<br>agreement rate per flair</div>
-      </div>
-      <div class="dash-card">
+      </a>
+      <a class="dash-card" href="http://localhost:8080/confusion-matrix.html" target="_blank" onclick="event.stopPropagation();">
         <div class="dash-icon" style="color: var(--accent2);">&boxH;</div>
         <div class="dash-title">Confusion Matrix</div>
         <div class="dash-desc">Transformer vs sklearn<br>D3.js heatmap</div>
-      </div>
-      <div class="dash-card">
+      </a>
+      <a class="dash-card" href="http://localhost:8080/confidence-distribution.html" target="_blank" onclick="event.stopPropagation();">
         <div class="dash-icon" style="color: var(--accent3);">&equiv;</div>
         <div class="dash-title">Confidence Distribution</div>
         <div class="dash-desc">Stacked histogram<br>comparing both models</div>
-      </div>
-      <div class="dash-card">
+      </a>
+      <a class="dash-card" href="http://localhost:8080/model-uncertainty.html" target="_blank" onclick="event.stopPropagation();">
         <div class="dash-icon" style="color: var(--accent4);">&ofcir;</div>
         <div class="dash-title">Uncertainty Zones</div>
         <div class="dash-desc">Both confident / uncertain /<br>disagreement doughnut</div>
-      </div>
-      <div class="dash-card">
-        <div class="dash-icon" style="color: var(--accent5);">&zigrarr;</div>
-        <div class="dash-title">Agreement Over Time</div>
-        <div class="dash-desc">Daily agreement rate<br>line chart</div>
-      </div>
-      <div class="dash-card">
-        <div class="dash-icon" style="color: var(--text-dim);">&UpArrowBar;</div>
-        <div class="dash-title">Flair Drift</div>
-        <div class="dash-desc">Per-flair daily frequency<br>drift detection</div>
-      </div>
+      </a>
     </div>
-    <p style="text-align:center; margin-top: 20px; font-size: 1rem;">All dashboards auto-refresh &mdash; switch to <strong class="accent">browser tabs</strong> to see live data</p>
+    <p style="text-align:center; margin-top: 20px; font-size: 1rem;">All dashboards auto-refresh &mdash; click any card to open it</p>
   </div>
 </div>
 
@@ -972,9 +1061,13 @@ spark-reddit-inference-driver               <span class="str">1/1     Running</s
     if (Math.abs(dx) > 60) { dx < 0 ? next() : prev(); }
   });
 
-  // Click left/right halves
+  // Click left/right halves (ignore copy buttons and terminal panes)
   document.addEventListener('click', function(e) {
     if (e.target.closest('.speaker-notes')) return;
+    if (e.target.closest('.copy-btn')) return;
+    if (e.target.closest('.cmd-row')) return;
+    if (e.target.closest('.terminal-pane')) return;
+    if (e.target.closest('.dash-card')) return;
     if (e.clientX > window.innerWidth * 0.65) next();
     else if (e.clientX < window.innerWidth * 0.35) prev();
   });
@@ -982,6 +1075,18 @@ spark-reddit-inference-driver               <span class="str">1/1     Running</s
   // Init
   show(0);
 })();
+
+// Copy command to clipboard
+function copyCmd(btn, text) {
+  navigator.clipboard.writeText(text).then(function() {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() {
+      btn.textContent = 'Copy';
+      btn.classList.remove('copied');
+    }, 1500);
+  });
+}
 </script>
 </body>
 </html>

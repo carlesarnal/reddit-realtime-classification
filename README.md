@@ -52,8 +52,6 @@ graph LR
 | Confusion Matrix | `/confusion-matrix.html` | Transformer vs sklearn alignment heatmap |
 | Confidence Distribution | `/confidence-distribution.html` | Histogram of confidence scores |
 | Uncertainty Zones | `/model-uncertainty.html` | Confident / uncertain / disagreement doughnut |
-| Agreement Over Time | `/agreement-over-time.html` | Daily agreement rate trend |
-| Flair Drift | `/flair-drift.html` | Per-flair daily frequency |
 
 ### Flair Categories
 

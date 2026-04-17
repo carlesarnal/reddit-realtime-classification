@@ -110,14 +110,28 @@ kubectl get pods -n spark-operator
 # All pods should be Running before you start
 ```
 
-### Screen layout
+### Start embedded terminals
 
-**Terminal (2 panes):**
+The presentation embeds live terminals via ttyd. Start two instances before the talk:
 
-| Pane | Purpose |
-|------|---------|
-| T1   | kubectl commands + producer deploy |
-| T2   | Producer logs (once started) |
+```bash
+# T1 — kubectl commands, deploy, curl (-W enables typing)
+ttyd -W -p 7681 bash &
+
+# T2 — producer logs
+ttyd -W -p 7682 bash &
+```
+
+Verify they work by opening `http://localhost:7681` and `http://localhost:7682` in the browser.
+
+**Serve the presentation via HTTP** (required for embedded terminals to load):
+
+```bash
+# From the project root
+python3 -m http.server 8082 &
+```
+
+Open `http://localhost:8082/presentation.html` in the browser (do NOT open the file directly — the ttyd iframes won't load from a `file://` URL).
 
 **Browser tabs (pre-load):**
 
@@ -125,8 +139,6 @@ kubectl get pods -n spark-operator
 2. `http://localhost:8080/confusion-matrix.html` — Model comparison heatmap
 3. `http://localhost:8080/confidence-distribution.html` — Confidence histograms
 4. `http://localhost:8080/model-uncertainty.html` — Uncertainty zones
-5. `http://localhost:8080/agreement-over-time.html` — Agreement trend
-6. `http://localhost:8080/flair-drift.html` — Data drift detection
 
 ---
 
@@ -209,22 +221,26 @@ curl -s http://localhost:8081/apis/registry/v3/groups/reddit-realtime/artifacts 
 
 - "Alright, time for the live demo. Let's start the pipeline and watch data flow in real-time."
 
-### Slide 9: Pre-deployed state
+### Slide 9: Pre-deployed state (embedded terminal)
 
-**In T1:**
+The terminal is embedded in the slide. Type directly in it.
+
+**Type in the embedded terminal:**
 
 ```bash
-kubectl get pods -n reddit-realtime
-kubectl get pods -n spark-operator
+kubectl get pods -n reddit-realtime && kubectl get pods -n spark-operator
 ```
 
-- "Let me show you what's already running. We have the Strimzi cluster operator managing our Kafka cluster. We have the Kafka broker itself — reddit-posts — running in KRaft mode, no ZooKeeper. We have Apicurio Registry for schema governance. And we have the Quarkus predictions consumer, which is our dashboard backend."
+- "Let me show you what's already running. I can type right here in the presentation — this is a live terminal."
+- "We have the Strimzi cluster operator managing our Kafka cluster. We have the Kafka broker itself — reddit-posts — running in KRaft mode, no ZooKeeper. We have Apicurio Registry for schema governance. And we have the Quarkus predictions consumer, which is our dashboard backend."
 - "Over in the spark-operator namespace, we have the Spark operator and the inference driver with two executors. The Spark job has already loaded both ML models — the DistilRoBERTa transformer and the sklearn classifier — and it's sitting there waiting for data to arrive on the reddit-stream topic."
 - "The only missing piece is the producer. Once we deploy it, data starts flowing through the entire pipeline."
 
-### Start the producer
+### Slide 10: Start producer (two embedded terminals)
 
-**In T1:**
+This slide has two side-by-side terminals embedded in it.
+
+**Type in T1 (left terminal):**
 
 ```bash
 kubectl apply -f runtime/kafka/producer/reddit_posts_processor.yaml
@@ -233,18 +249,16 @@ kubectl apply -f runtime/kafka/producer/reddit_posts_processor.yaml
 - "Let's deploy the producer. This is a Python pod that reads pre-collected Reddit posts from r/AskEurope — we have thousands of real posts stored as CSV files. It cleans each post — removes URLs, strips stopwords, does lemmatization — and then streams them to Kafka one by one with a small delay, simulating a real-time feed."
 - "The producer uses the Confluent JSON Schema serializer, which validates every message against the schema stored in Apicurio Registry before sending it. If a message doesn't match the schema, it won't be sent."
 
-**In T2, tail the logs:**
+**Type in T2 (right terminal):**
 
 ```bash
 kubectl logs -n reddit-realtime -f deployment/kafka-producer
 ```
 
-- "Let's tail the producer logs in the other terminal. You should see the cleaning pipeline running on each post and then confirmation messages showing the partition and offset where each message was sent."
+- "In the right terminal, let's tail the producer logs. You should see the cleaning pipeline running on each post and then confirmation messages showing the partition and offset where each message was sent."
 - Wait for a few "Sent to reddit-stream partition X offset Y" lines to appear.
 
-### Verify end-to-end flow
-
-**In T1 (wait ~60 seconds for Spark to process a micro-batch):**
+**Back in T1 (wait ~60 seconds for Spark to process a micro-batch):**
 
 ```bash
 curl -s http://localhost:8080/flairs/statistics | python3 -m json.tool
@@ -286,7 +300,7 @@ curl -s http://localhost:8080/flairs/statistics | python3 -m json.tool
 
 ### Slide 15: Dashboard overview
 
-- "We have six dashboards, each showing a different angle on the pipeline. Let me walk through each one."
+- "We have four dashboards, each showing a different angle on the pipeline. You can click any card to open it. Let me walk through each one."
 
 ### Main Metrics (`/metrics.html`) — switch to browser tab 1
 
@@ -319,19 +333,6 @@ curl -s http://localhost:8080/flairs/statistics | python3 -m json.tool
 - "The red zone, Disagreement, is the most interesting. One model is confident and the other is not. These are the best candidates for manual review or active learning — they're the posts where you'd get the most value from a human label."
 - "And here's the key insight of the whole pipeline: you get all of this — reliability assessment, uncertainty detection, review candidates — without any ground-truth labels in production. The models supervise each other."
 
-### Agreement Over Time (`/agreement-over-time.html`) — switch to browser tab 5
-
-- "This line chart shows the agreement rate between the two models over time."
-- "If this line is stable, your models are performing consistently — the incoming data looks similar to what they were trained on."
-- "If you see agreement dropping over time, that's a strong signal of data drift. It means the incoming data is shifting away from the training distribution, and the models are starting to disagree more."
-- "In production, you'd set an alert on this metric. A sustained drop below a threshold should trigger a retraining cycle."
-
-### Flair Drift (`/flair-drift.html`) — switch to browser tab 6
-
-- "This is a multi-line chart with one line per flair category, showing daily frequency."
-- "This helps you detect data drift at the category level. If a specific flair suddenly spikes or drops, something changed in the incoming data."
-- "For example, a political event could cause a spike in Politics posts. A seasonal trend could shift Travel or Food patterns. If the distribution shifts significantly from what the models were trained on, it's time to retrain."
-- "This chart combined with the agreement trend gives you a complete data drift monitoring system — and it's all computed in real-time by the Quarkus consumer."
 
 ---
 
