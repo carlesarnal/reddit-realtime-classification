@@ -155,8 +155,12 @@ kubectl apply -f runtime/kafka/producer/reddit_posts_processor.yaml
 kubectl port-forward -n reddit-realtime svc/predictions-consumer 8080:80 &
 # Open http://localhost:8080/metrics.html
 
-# Apicurio Registry
+# Apicurio Registry API
 kubectl port-forward -n reddit-realtime svc/apicurio-registry 8081:8080 &
+
+# Apicurio Registry UI
+kubectl port-forward -n reddit-realtime svc/apicurio-registry-ui 8083:8080 &
+# Open http://localhost:8083
 
 # Register schemas
 kubectl wait --for=condition=available deployment/apicurio-registry -n reddit-realtime --timeout=120s

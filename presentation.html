@@ -7,7 +7,7 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
-  :root {
+  :root, :root.dark {
     --bg: #0f1117;
     --bg-card: #1a1d27;
     --bg-code: #151820;
@@ -20,6 +20,21 @@
     --accent5: #f472b6;
     --red: #ef4444;
     --border: #2a2e3b;
+  }
+
+  :root.light {
+    --bg: #f5f6fa;
+    --bg-card: #ffffff;
+    --bg-code: #eef0f6;
+    --text: #1a1d27;
+    --text-dim: #5a5f72;
+    --accent: #2563eb;
+    --accent2: #7c3aed;
+    --accent3: #059669;
+    --accent4: #d97706;
+    --accent5: #db2777;
+    --red: #dc2626;
+    --border: #d1d5e0;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -50,6 +65,16 @@
     opacity: 1; visibility: visible;
     transform: translateX(0);
     transition: opacity 0.45s ease, transform 0.45s ease, visibility 0s 0s;
+  }
+  .slide.leaving-left {
+    opacity: 0; visibility: hidden;
+    transform: translateX(-40px);
+    transition: opacity 0.45s ease, transform 0.45s ease, visibility 0s 0.45s;
+  }
+  .slide.leaving-right {
+    opacity: 0; visibility: hidden;
+    transform: translateX(40px);
+    transition: opacity 0.45s ease, transform 0.45s ease, visibility 0s 0.45s;
   }
 
   /* ---- Typography ---- */
@@ -410,6 +435,99 @@
     color: var(--accent3);
   }
 
+  /* ---- Help overlay ---- */
+  .help-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 500;
+  }
+  .help-overlay.visible { display: flex; }
+  .help-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 40px 48px;
+    max-width: 480px;
+    width: 90%;
+  }
+  .help-box h3 { margin-bottom: 20px; text-transform: none; letter-spacing: 0; font-size: 1.2rem; }
+  .help-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .help-row:last-child { border-bottom: none; }
+  .help-key {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 10px;
+    color: var(--accent);
+  }
+  .help-desc { font-size: 0.9rem; color: var(--text-dim); }
+
+  /* ---- Presenter timer ---- */
+  .presenter-timer {
+    position: fixed;
+    bottom: 16px;
+    left: 28px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    z-index: 100;
+    display: none;
+  }
+  .presenter-timer.visible { display: block; }
+
+  /* ---- Theme toggle button ---- */
+  .theme-toggle {
+    position: fixed;
+    top: 16px;
+    right: 28px;
+    z-index: 300;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+    letter-spacing: 0.03em;
+  }
+  .theme-toggle:hover {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+
+  /* ---- Light mode overrides for elements with hardcoded colors ---- */
+  :root.light .terminal-pane { background: #1a1d27; }
+  :root.light .terminal-label { background: rgba(0,0,0,0.7); color: #8b90a0; }
+  :root.light .help-overlay { background: rgba(0,0,0,0.5); }
+  :root.light .speaker-notes { background: rgba(255,255,255,0.95); border-top-color: var(--border); }
+  :root.light .title-slide h1 {
+    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 50%, #db2777 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  :root.light .progress {
+    background: linear-gradient(90deg, #2563eb, #7c3aed);
+  }
+  :root.light pre .cmt { color: #9ca3af; }
+  :root.light .flow-dot { background: var(--accent); }
+  :root.light .section-slide .section-num { color: var(--accent); }
+
   /* ---- Speaker notes (hidden by default, toggle with 'n') ---- */
   .speaker-notes {
     position: fixed;
@@ -633,6 +751,12 @@
     <div style="margin-top: 24px; text-align:center;">
       <p style="font-size:1.1rem;">Prevents <strong>schema drift</strong> &mdash; if the producer format changes, consumers won't silently break</p>
       <p style="font-size:0.95rem;">Supports <strong class="accent3">backward compatibility</strong> rules for safe schema evolution</p>
+      <a href="http://localhost:8083" target="_blank"
+         style="display: inline-block; margin-top: 16px; color: var(--accent3); font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; text-decoration: none; border: 1px solid rgba(52,211,153,0.3); padding: 8px 20px; border-radius: 8px; background: rgba(52,211,153,0.08); transition: background 0.2s;"
+         onmouseover="this.style.background='rgba(52,211,153,0.2)'" onmouseout="this.style.background='rgba(52,211,153,0.08)'"
+         onclick="event.stopPropagation();">
+        Open Apicurio Registry UI &rarr; localhost:8083
+      </a>
     </div>
   </div>
 </div>
@@ -775,7 +899,7 @@
   </div>
 </div>
 
-<!-- =========== SLIDE 15: SECTION - DASHBOARDS =========== -->
+<!-- =========== SLIDE 14: SECTION - DASHBOARDS =========== -->
 <div class="slide section-slide" data-notes="Transition to dashboard walkthrough. Switch to browser tabs.">
   <div class="content center">
     <div class="section-num">06</div>
@@ -785,7 +909,7 @@
   </div>
 </div>
 
-<!-- =========== SLIDE 16: DASHBOARD OVERVIEW =========== -->
+<!-- =========== SLIDE 15: DASHBOARD OVERVIEW =========== -->
 <div class="slide" data-notes="Walk through each dashboard in the browser. Main metrics, confusion matrix, confidence distribution, uncertainty zones.">
   <div class="content">
     <h3>Live Dashboards</h3>
@@ -816,7 +940,7 @@
   </div>
 </div>
 
-<!-- =========== SLIDE 17: KEY INSIGHT - UNCERTAINTY =========== -->
+<!-- =========== SLIDE 16: KEY INSIGHT - UNCERTAINTY =========== -->
 <div class="slide" data-notes="The most actionable dashboard. Both Confident = reliable. Both Uncertain = hard posts. Disagreement = candidates for manual review or retraining. This works WITHOUT ground-truth labels.">
   <div class="content center">
     <h3>Key Insight</h3>
@@ -845,7 +969,7 @@
   </div>
 </div>
 
-<!-- =========== SLIDE 18: SECTION - PRODUCTION =========== -->
+<!-- =========== SLIDE 17: SECTION - PRODUCTION =========== -->
 <div class="slide section-slide" data-notes="Transition to production considerations.">
   <div class="content center">
     <div class="section-num">07</div>
@@ -854,7 +978,7 @@
   </div>
 </div>
 
-<!-- =========== SLIDE 19: PRODUCTION =========== -->
+<!-- =========== SLIDE 18: PRODUCTION =========== -->
 <div class="slide" data-notes="In production: add Prometheus + Grafana + Jaeger for observability. DLQs at every stage. Partition Kafka topics for parallelism. Scale Spark executors. Replicate the consumer.">
   <div class="content">
     <h3>Beyond the demo</h3>
@@ -880,7 +1004,7 @@
   </div>
 </div>
 
-<!-- =========== SLIDE 20: EXTENSIBILITY =========== -->
+<!-- =========== SLIDE 19: EXTENSIBILITY =========== -->
 <div class="slide" data-notes="The pattern is reusable. Swap Reddit for any event source. Swap the models. The pipeline architecture stays the same.">
   <div class="content center">
     <h3>Extensibility</h3>
@@ -903,7 +1027,7 @@
   </div>
 </div>
 
-<!-- =========== SLIDE 21: CONCLUSIONS =========== -->
+<!-- =========== SLIDE 20: CONCLUSIONS =========== -->
 <div class="slide" data-notes="Walk through what we observed from the live pipeline. The transformer is highly confident and polarized. sklearn is more cautious and spread. Agreement varies by flair — some categories are easy for both models, others are inherently ambiguous. The disagreement zone is the most valuable output of the whole pipeline.">
   <div class="content">
     <h3>Conclusions</h3>
@@ -929,7 +1053,7 @@
   </div>
 </div>
 
-<!-- =========== SLIDE 22: KEY TAKEAWAYS =========== -->
+<!-- =========== SLIDE 21: KEY TAKEAWAYS =========== -->
 <div class="slide" data-notes="Wrap up with 4 key takeaways. Building real-time ML pipelines with OSS is practical. Dual models give richer observability. Schema governance prevents silent failures. K8s operators simplify ops.">
   <div class="content">
     <h3>Wrap Up</h3>
@@ -956,6 +1080,7 @@
 </div>
 
 <!-- =========== SLIDE 22: THANK YOU =========== -->
+
 <div class="slide title-slide" data-notes="Thank the audience. Open for questions.">
   <div class="content center">
     <h1>Thank You</h1>
@@ -964,7 +1089,15 @@
       <span><strong>Carles Arnal</strong></span>
       <span>Principal Software Engineer, IBM</span>
     </div>
-    <div class="tech-row" style="margin-top: 48px;">
+    <div style="margin-top: 32px;">
+      <a href="https://github.com/carlesarnal/reddit-realtime-classification" target="_blank"
+         style="color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 1.05rem; text-decoration: none; border: 1px solid rgba(79,143,247,0.3); padding: 10px 24px; border-radius: 8px; background: rgba(79,143,247,0.08); display: inline-block; transition: background 0.2s;"
+         onmouseover="this.style.background='rgba(79,143,247,0.2)'" onmouseout="this.style.background='rgba(79,143,247,0.08)'"
+         onclick="event.stopPropagation();">
+        github.com/carlesarnal/reddit-realtime-classification
+      </a>
+    </div>
+    <div class="tech-row" style="margin-top: 32px;">
       <div class="tech-item">Strimzi</div>
       <div class="tech-item">Apache Kafka</div>
       <div class="tech-item">Apache Spark</div>
@@ -979,14 +1112,37 @@
 
 </div><!-- /deck -->
 
+<!-- Theme toggle -->
+<button class="theme-toggle" id="themeToggle" onclick="toggleTheme()">Light</button>
+
 <!-- Progress bar -->
 <div class="progress" id="progress"></div>
 
 <!-- Slide counter -->
 <div class="slide-counter" id="counter"></div>
 
+<!-- Presenter timer -->
+<div class="presenter-timer" id="timer">00:00</div>
+
 <!-- Speaker notes panel -->
 <div class="speaker-notes" id="notes"></div>
+
+<!-- Help overlay -->
+<div class="help-overlay" id="helpOverlay">
+  <div class="help-box">
+    <h3 class="accent">Keyboard Shortcuts</h3>
+    <div class="help-row"><span class="help-desc">Next slide</span> <span><span class="help-key">&rarr;</span> <span class="help-key">Space</span></span></div>
+    <div class="help-row"><span class="help-desc">Previous slide</span> <span class="help-key">&larr;</span></div>
+    <div class="help-row"><span class="help-desc">Jump to slide</span> <span class="help-key">1-9</span></div>
+    <div class="help-row"><span class="help-desc">First / last slide</span> <span><span class="help-key">Home</span> <span class="help-key">End</span></span></div>
+    <div class="help-row"><span class="help-desc">Speaker notes</span> <span class="help-key">N</span></div>
+    <div class="help-row"><span class="help-desc">Presenter timer</span> <span class="help-key">T</span></div>
+    <div class="help-row"><span class="help-desc">Toggle light/dark theme</span> <span class="help-key">L</span></div>
+    <div class="help-row"><span class="help-desc">Fullscreen</span> <span class="help-key">F</span></div>
+    <div class="help-row"><span class="help-desc">This help</span> <span class="help-key">?</span></div>
+    <p style="text-align: center; margin-top: 20px; font-size: 0.8rem; color: var(--text-dim);">Press any key to close</p>
+  </div>
+</div>
 
 <script>
 (function() {
@@ -994,43 +1150,98 @@
   const progress = document.getElementById('progress');
   const counter = document.getElementById('counter');
   const notesPanel = document.getElementById('notes');
+  const timerEl = document.getElementById('timer');
+  const helpOverlay = document.getElementById('helpOverlay');
   let current = 0;
   let notesVisible = false;
+  let timerVisible = false;
+  let helpVisible = false;
+  let timerStart = null;
+  let timerInterval = null;
 
-  function show(index) {
+  function show(index, direction) {
     if (index < 0 || index >= slides.length) return;
-    slides[current].classList.remove('active');
+    var old = slides[current];
+    old.classList.remove('active');
+    // Apply directional leaving class
+    if (direction === 'forward') {
+      old.classList.add('leaving-left');
+    } else if (direction === 'backward') {
+      old.classList.add('leaving-right');
+    }
+    // Clean up leaving class after transition
+    setTimeout(function() {
+      old.classList.remove('leaving-left', 'leaving-right');
+    }, 500);
+
     current = index;
     slides[current].classList.add('active');
 
     // progress
-    const pct = ((current + 1) / slides.length) * 100;
+    var pct = ((current + 1) / slides.length) * 100;
     progress.style.width = pct + '%';
 
     // counter
     counter.textContent = (current + 1) + ' / ' + slides.length;
 
     // notes
-    const note = slides[current].getAttribute('data-notes') || '';
+    var note = slides[current].getAttribute('data-notes') || '';
     notesPanel.innerHTML = note;
   }
 
-  function next() { show(current + 1); }
-  function prev() { show(current - 1); }
+  function next() { show(current + 1, 'forward'); }
+  function prev() { show(current - 1, 'backward'); }
+
+  // Timer functions
+  function formatTime(ms) {
+    var totalSec = Math.floor(ms / 1000);
+    var min = Math.floor(totalSec / 60);
+    var sec = totalSec % 60;
+    return (min < 10 ? '0' : '') + min + ':' + (sec < 10 ? '0' : '') + sec;
+  }
+
+  function toggleTimer() {
+    timerVisible = !timerVisible;
+    timerEl.classList.toggle('visible', timerVisible);
+    if (timerVisible && !timerStart) {
+      timerStart = Date.now();
+      timerInterval = setInterval(function() {
+        timerEl.textContent = formatTime(Date.now() - timerStart);
+      }, 1000);
+    }
+  }
+
+  function toggleHelp() {
+    helpVisible = !helpVisible;
+    helpOverlay.classList.toggle('visible', helpVisible);
+  }
 
   // Keyboard navigation
   document.addEventListener('keydown', function(e) {
+    // Close help on any key if visible
+    if (helpVisible) {
+      toggleHelp();
+      e.preventDefault();
+      return;
+    }
+
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown') {
       e.preventDefault(); next();
     } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
       e.preventDefault(); prev();
     } else if (e.key === 'Home') {
-      e.preventDefault(); show(0);
+      e.preventDefault(); show(0, 'backward');
     } else if (e.key === 'End') {
-      e.preventDefault(); show(slides.length - 1);
+      e.preventDefault(); show(slides.length - 1, 'forward');
     } else if (e.key === 'n' || e.key === 'N') {
       notesVisible = !notesVisible;
       notesPanel.classList.toggle('visible', notesVisible);
+    } else if (e.key === 't' || e.key === 'T') {
+      toggleTimer();
+    } else if (e.key === 'l' || e.key === 'L') {
+      toggleTheme();
+    } else if (e.key === '?' || e.key === 'h' || e.key === 'H') {
+      toggleHelp();
     } else if (e.key === 'f' || e.key === 'F') {
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen();
@@ -1042,39 +1253,60 @@
     }
     // Number keys jump to slide
     if (e.key >= '0' && e.key <= '9' && !e.ctrlKey && !e.metaKey) {
-      // build multi-digit number with 500ms timeout
       clearTimeout(window._numTimeout);
       window._numBuffer = (window._numBuffer || '') + e.key;
       window._numTimeout = setTimeout(function() {
         var n = parseInt(window._numBuffer, 10) - 1;
+        var dir = n > current ? 'forward' : 'backward';
         window._numBuffer = '';
-        if (n >= 0 && n < slides.length) show(n);
+        if (n >= 0 && n < slides.length) show(n, dir);
       }, 500);
     }
   });
 
   // Touch / swipe
-  let touchStartX = 0;
+  var touchStartX = 0;
   document.addEventListener('touchstart', function(e) { touchStartX = e.touches[0].clientX; });
   document.addEventListener('touchend', function(e) {
-    const dx = e.changedTouches[0].clientX - touchStartX;
+    var dx = e.changedTouches[0].clientX - touchStartX;
     if (Math.abs(dx) > 60) { dx < 0 ? next() : prev(); }
   });
 
-  // Click left/right halves (ignore copy buttons and terminal panes)
+  // Click left/right halves (ignore copy buttons, terminals, dashboards, help)
   document.addEventListener('click', function(e) {
     if (e.target.closest('.speaker-notes')) return;
     if (e.target.closest('.copy-btn')) return;
     if (e.target.closest('.cmd-row')) return;
     if (e.target.closest('.terminal-pane')) return;
     if (e.target.closest('.dash-card')) return;
+    if (e.target.closest('.help-overlay')) return;
     if (e.clientX > window.innerWidth * 0.65) next();
     else if (e.clientX < window.innerWidth * 0.35) prev();
+  });
+
+  // Close help on click
+  helpOverlay.addEventListener('click', function() {
+    if (helpVisible) toggleHelp();
   });
 
   // Init
   show(0);
 })();
+
+// Theme toggle
+function toggleTheme() {
+  var root = document.documentElement;
+  var btn = document.getElementById('themeToggle');
+  if (root.classList.contains('light')) {
+    root.classList.remove('light');
+    root.classList.add('dark');
+    btn.textContent = 'Light';
+  } else {
+    root.classList.remove('dark');
+    root.classList.add('light');
+    btn.textContent = 'Dark';
+  }
+}
 
 // Copy command to clipboard
 function copyCmd(btn, text) {
