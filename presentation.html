@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why Are Predictions Late? Diagnosing Streaming Inference on Kubernetes</title>
+<style>body{margin:0;background:#f5f3ef;color:#242424;font:clamp(18px,2.1vw,28px) system-ui}section{display:none;box-sizing:border-box;min-height:100vh;padding:6vw}section.active{display:block}h1{font-size:clamp(28px,4vw,54px);max-width:1000px}p,li{max-width:1100px;line-height:1.5}small{color:#80502e}nav{position:fixed;bottom:12px;right:20px}button{font-size:18px;padding:8px}.notes{display:none;background:#e2efea;padding:20px}body.notes-on .notes{display:block}@media print{section{display:block;break-after:page;min-height:90vh}nav,.notes{display:none!important}}</style>
+<body>
+<section id="slide-1" class="active">
+<small>1 / 7</small>
+<h1>The question</h1>
+<p>Why Are Predictions Late? Diagnosing Streaming Inference on Kubernetes</p>
+<aside class="notes">Explain the evidence, then its boundary. Use the corresponding section in PRESENTATION_GUIDE.md.</aside>
+</section>
+<section id="slide-2" class="">
+<small>2 / 7</small>
+<h1>Availability is not freshness</h1>
+<p>The existing classification pipeline connects Kafka, Spark inference and a Quarkus results API. An available API can serve predictions about old inputs. Adding replicas to that API does not necessarily improve upstream processing. Apicurio Registry supports schema integration, but a schema cannot establish that a prediction is timely.</p>
+<aside class="notes">Explain the evidence, then its boundary. Use the corresponding section in PRESENTATION_GUIDE.md.</aside>
+</section>
+<section id="slide-3" class="">
+<small>3 / 7</small>
+<h1>Give every event a timeline</h1>
+<p>Record ingress time, processing start, processing end and query visibility with a stable event identity. The new CSV analyzer calculates queue, processing and visibility intervals and their sum. It rejects empty observations, duplicate IDs, naive timestamps and reversed boundaries. Its unit fixtures prove arithmetic and validation only, not a measured throughput or latency figure.</p>
+<aside class="notes">Explain the evidence, then its boundary. Use the corresponding section in PRESENTATION_GUIDE.md.</aside>
+</section>
+<section id="slide-4" class="">
+<small>4 / 7</small>
+<h1>Control the replay</h1>
+<p>Use fixed inputs and stamp their current ingress time; historical source timestamps are a different age metric. Keep model, resources and input distribution comparable. Run a sustainable baseline, then overload, then change a single processing setting. Separate warm-up and observation windows. A micro-batch interval can add scheduling delay, but reducing it does not create inference capacity.</p>
+<aside class="notes">Explain the evidence, then its boundary. Use the corresponding section in PRESENTATION_GUIDE.md.</aside>
+</section>
+<section id="slide-5" class="">
+<small>5 / 7</small>
+<h1>What remains to measure</h1>
+<p>The earlier OCX presentation supports the application and speaker background. It is not a recording of this new controlled experiment. The repository now contains the measurement contract and analyzer, while actual replay/load measurements remain pending. Report observed input/processing rates and backlog alongside per-event age before recommending a capacity change.</p>
+<aside class="notes">Explain the evidence, then its boundary. Use the corresponding section in PRESENTATION_GUIDE.md.</aside>
+</section>
+<section id="slide-6" class="">
+<small>6 / 7</small>
+<h1>Verification boundary</h1>
+<p>Timestamp analyzer and unit fixtures prepared. Fixtures are synthetic correctness inputs, not performance results. The fixed-replay Spark load experiment and fresh Kubernetes execution remain pending.</p>
+<aside class="notes">Explain the evidence, then its boundary. Use the corresponding section in PRESENTATION_GUIDE.md.</aside>
+</section>
+<section id="slide-7" class="">
+<small>7 / 7</small>
+<h1>Takeaways</h1>
+<p>- An experiment for separating scheduling delay, backlog and inference cost<br>- A metric map connecting stream progress to prediction freshness<br>- Criteria for tuning a processing interval versus increasing throughput</p>
+<aside class="notes">Explain the evidence, then its boundary. Use the corresponding section in PRESENTATION_GUIDE.md.</aside>
+</section>
+<nav>
+<button id="prev" aria-label="Previous slide">←</button> <button id="next" aria-label="Next slide">→</button>
+</nav>
+<script>let n=0;const s=[...document.querySelectorAll('section')];function show(i){n=Math.max(0,Math.min(s.length-1,i));s.forEach((x,j)=>x.classList.toggle('active',j===n));history.replaceState(null,'','#slide-'+(n+1));}function fromHash(){const m=location.hash.match(/^#slide-(\d+)$/);if(m)show(Number(m[1])-1);}document.addEventListener('keydown',e=>{if(['ArrowRight','PageDown',' '].includes(e.key)){e.preventDefault();show(n+1)}if(['ArrowLeft','PageUp'].includes(e.key)){e.preventDefault();show(n-1)}if(e.key==='Home')show(0);if(e.key==='End')show(s.length-1);if(e.key.toLowerCase()==='n')document.body.classList.toggle('notes-on');if(e.key.toLowerCase()==='f')document.documentElement.requestFullscreen?.();});document.querySelector('#prev').onclick=()=>show(n-1);document.querySelector('#next').onclick=()=>show(n+1);window.addEventListener('hashchange',fromHash);fromHash();</script>
+</body>
+</html>

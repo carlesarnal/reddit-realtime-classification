@@ -25,3 +25,11 @@ replay_pid*
 
 model/results/
 model/reddit_flair_classifier/
+
+__pycache__/
+
+target/
+
+.venv/
+
+.DS_Store

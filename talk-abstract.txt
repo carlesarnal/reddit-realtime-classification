@@ -1,0 +1,12 @@
+Title: Why Are Predictions Late? Diagnosing Streaming Inference on Kubernetes
+
+A prediction endpoint can return HTTP 200 while serving results for events that arrived minutes ago. Adding API replicas will not help if the delay sits upstream in a Spark micro-batch or a growing Kafka backlog. Where should an application team measure before changing capacity?
+
+Building on my streaming-classification application presented at OCX, this session develops a controlled diagnosis experiment with Kafka on Strimzi, Spark Structured Streaming and a Quarkus results API. A fixed replay carries event identities and arrival timestamps. We compare sustainable load with overload, then change one processing setting while keeping inputs, model and resources comparable. The output is a timeline from arrival to queryable prediction, alongside the evidence needed to attribute its delay.
+
+Input and processing rates reveal whether backlog grows; batch duration and prediction age help separate scheduling delay from insufficient processing throughput. We use those signals to choose between changing the micro-batch interval, reducing per-record inference cost and adding effective processing capacity. One classification path keeps the investigation reproducible without a live third-party feed or a comparison of unrelated models.
+
+Attendees will leave with:
+- An experiment for separating scheduling delay, backlog and inference cost
+- A metric map connecting stream progress to prediction freshness
+- Criteria for tuning a processing interval versus increasing throughput

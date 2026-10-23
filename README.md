@@ -1,3 +1,5 @@
+> Current conference package: [PRESENTATION_GUIDE.md](PRESENTATION_GUIDE.md), [EVIDENCE.md](EVIDENCE.md), [VERIFICATION.md](VERIFICATION.md) and `presentation.html`. The `talk/` checks have a narrower scope than the historical application below.
+
 # Reddit Realtime Flair Classification
 
 A production-grade distributed ML pipeline that classifies Reddit posts from r/AskEurope using dual-model inference (Transformer + scikit-learn), with end-to-end observability, failure handling, and schema governance.
