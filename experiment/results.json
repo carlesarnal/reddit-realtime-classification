@@ -1,0 +1,529 @@
+{
+  "spark": "3.5.3",
+  "model": "CountVectorizer + MultinomialNB on four explicit fixture texts",
+  "resources": "local[2]",
+  "trigger_seconds": 1,
+  "repetitions": 1,
+  "boundary": "real Spark processing; file input and collected result visibility, not Kafka/HTTP or production benchmark",
+  "results": [
+    {
+      "case": "baseline",
+      "source": "file stream, maxFilesPerTrigger=1",
+      "events": 12,
+      "input_interval_seconds": 1.2,
+      "injected_per_record_delay_seconds": 0,
+      "offered_rate": 0.7981774429753559,
+      "processed_by_input_end": 12,
+      "pending_at_input_end": 0,
+      "drain_seconds": 0.6681628227233887,
+      "median_age_seconds": 0.6455972194671631,
+      "max_age_seconds": 0.9938957691192627,
+      "batches": [
+        {
+          "id": 1,
+          "count": 1,
+          "duration_seconds": 0.04593348503112793
+        },
+        {
+          "id": 2,
+          "count": 1,
+          "duration_seconds": 0.03756356239318848
+        },
+        {
+          "id": 3,
+          "count": 1,
+          "duration_seconds": 0.048111915588378906
+        },
+        {
+          "id": 4,
+          "count": 1,
+          "duration_seconds": 0.029253005981445312
+        },
+        {
+          "id": 5,
+          "count": 1,
+          "duration_seconds": 0.08093881607055664
+        },
+        {
+          "id": 6,
+          "count": 1,
+          "duration_seconds": 0.024356842041015625
+        },
+        {
+          "id": 7,
+          "count": 1,
+          "duration_seconds": 0.02493596076965332
+        },
+        {
+          "id": 8,
+          "count": 1,
+          "duration_seconds": 0.0427854061126709
+        },
+        {
+          "id": 9,
+          "count": 1,
+          "duration_seconds": 0.02375340461730957
+        },
+        {
+          "id": 10,
+          "count": 1,
+          "duration_seconds": 0.021840810775756836
+        },
+        {
+          "id": 11,
+          "count": 1,
+          "duration_seconds": 0.09693026542663574
+        },
+        {
+          "id": 12,
+          "count": 1,
+          "duration_seconds": 0.0214385986328125
+        }
+      ],
+      "events_observed": [
+        {
+          "id": 0,
+          "prediction": "technology",
+          "ingress": 1792772813.426323,
+          "processing_start": 1792772814.1056561,
+          "result_visible": 1792772814.151585,
+          "age_seconds": 0.7252621650695801
+        },
+        {
+          "id": 1,
+          "prediction": "sport",
+          "ingress": 1792772814.6732094,
+          "processing_start": 1792772815.0811744,
+          "result_visible": 1792772815.1187305,
+          "age_seconds": 0.44552111625671387
+        },
+        {
+          "id": 2,
+          "prediction": "technology",
+          "ingress": 1792772815.8955295,
+          "processing_start": 1792772816.1090717,
+          "result_visible": 1792772816.1571789,
+          "age_seconds": 0.26164937019348145
+        },
+        {
+          "id": 3,
+          "prediction": "sport",
+          "ingress": 1792772817.172001,
+          "processing_start": 1792772818.1239915,
+          "result_visible": 1792772818.1532395,
+          "age_seconds": 0.981238603591919
+        },
+        {
+          "id": 4,
+          "prediction": "technology",
+          "ingress": 1792772818.3990147,
+          "processing_start": 1792772819.0864491,
+          "result_visible": 1792772819.1673818,
+          "age_seconds": 0.7683670520782471
+        },
+        {
+          "id": 5,
+          "prediction": "sport",
+          "ingress": 1792772819.65984,
+          "processing_start": 1792772820.2014198,
+          "result_visible": 1792772820.2257724,
+          "age_seconds": 0.5659322738647461
+        },
+        {
+          "id": 6,
+          "prediction": "technology",
+          "ingress": 1792772820.8978257,
+          "processing_start": 1792772821.1081662,
+          "result_visible": 1792772821.133097,
+          "age_seconds": 0.23527121543884277
+        },
+        {
+          "id": 7,
+          "prediction": "sport",
+          "ingress": 1792772822.1426988,
+          "processing_start": 1792772823.0778115,
+          "result_visible": 1792772823.120592,
+          "age_seconds": 0.9778933525085449
+        },
+        {
+          "id": 8,
+          "prediction": "technology",
+          "ingress": 1792772823.3441215,
+          "processing_start": 1792772824.07686,
+          "result_visible": 1792772824.1006083,
+          "age_seconds": 0.7564868927001953
+        },
+        {
+          "id": 9,
+          "prediction": "sport",
+          "ingress": 1792772824.645716,
+          "processing_start": 1792772825.063716,
+          "result_visible": 1792772825.0854678,
+          "age_seconds": 0.43975186347961426
+        },
+        {
+          "id": 10,
+          "prediction": "technology",
+          "ingress": 1792772825.941625,
+          "processing_start": 1792772826.1570191,
+          "result_visible": 1792772826.253945,
+          "age_seconds": 0.3123199939727783
+        },
+        {
+          "id": 11,
+          "prediction": "sport",
+          "ingress": 1792772827.1501966,
+          "processing_start": 1792772828.1226597,
+          "result_visible": 1792772828.1440923,
+          "age_seconds": 0.9938957691192627
+        }
+      ]
+    },
+    {
+      "case": "overload",
+      "source": "file stream, maxFilesPerTrigger=1",
+      "events": 12,
+      "input_interval_seconds": 0.1,
+      "injected_per_record_delay_seconds": 1.2,
+      "offered_rate": 6.448674688915767,
+      "processed_by_input_end": 1,
+      "pending_at_input_end": 11,
+      "drain_seconds": 14.887123346328735,
+      "median_age_seconds": 8.4036865234375,
+      "max_age_seconds": 14.97020697593689,
+      "batches": [
+        {
+          "id": 1,
+          "count": 1,
+          "duration_seconds": 1.2242753505706787
+        },
+        {
+          "id": 2,
+          "count": 1,
+          "duration_seconds": 1.2852413654327393
+        },
+        {
+          "id": 3,
+          "count": 1,
+          "duration_seconds": 1.344402551651001
+        },
+        {
+          "id": 4,
+          "count": 1,
+          "duration_seconds": 1.2952115535736084
+        },
+        {
+          "id": 5,
+          "count": 1,
+          "duration_seconds": 1.223823070526123
+        },
+        {
+          "id": 6,
+          "count": 1,
+          "duration_seconds": 1.3164916038513184
+        },
+        {
+          "id": 7,
+          "count": 1,
+          "duration_seconds": 1.3191866874694824
+        },
+        {
+          "id": 8,
+          "count": 1,
+          "duration_seconds": 1.2503159046173096
+        },
+        {
+          "id": 9,
+          "count": 1,
+          "duration_seconds": 1.3243319988250732
+        },
+        {
+          "id": 10,
+          "count": 1,
+          "duration_seconds": 1.2209336757659912
+        },
+        {
+          "id": 11,
+          "count": 1,
+          "duration_seconds": 1.2621581554412842
+        },
+        {
+          "id": 12,
+          "count": 1,
+          "duration_seconds": 1.2824840545654297
+        }
+      ],
+      "events_observed": [
+        {
+          "id": 0,
+          "prediction": "technology",
+          "ingress": 1792772830.6263034,
+          "processing_start": 1792772831.1565962,
+          "result_visible": 1792772832.3808372,
+          "age_seconds": 1.7545337677001953
+        },
+        {
+          "id": 1,
+          "prediction": "sport",
+          "ingress": 1792772830.7447882,
+          "processing_start": 1792772832.445978,
+          "result_visible": 1792772833.731164,
+          "age_seconds": 2.9863758087158203
+        },
+        {
+          "id": 2,
+          "prediction": "technology",
+          "ingress": 1792772830.8670309,
+          "processing_start": 1792772833.7998002,
+          "result_visible": 1792772835.1441233,
+          "age_seconds": 4.277092456817627
+        },
+        {
+          "id": 3,
+          "prediction": "sport",
+          "ingress": 1792772831.099726,
+          "processing_start": 1792772835.211738,
+          "result_visible": 1792772836.5068495,
+          "age_seconds": 5.407123565673828
+        },
+        {
+          "id": 4,
+          "prediction": "technology",
+          "ingress": 1792772831.201256,
+          "processing_start": 1792772836.5864234,
+          "result_visible": 1792772837.8102129,
+          "age_seconds": 6.608956813812256
+        },
+        {
+          "id": 5,
+          "prediction": "sport",
+          "ingress": 1792772831.4443665,
+          "processing_start": 1792772837.8949294,
+          "result_visible": 1792772839.2111924,
+          "age_seconds": 7.766825914382935
+        },
+        {
+          "id": 6,
+          "prediction": "technology",
+          "ingress": 1792772831.5727153,
+          "processing_start": 1792772839.294156,
+          "result_visible": 1792772840.6132624,
+          "age_seconds": 9.040547132492065
+        },
+        {
+          "id": 7,
+          "prediction": "sport",
+          "ingress": 1792772831.755356,
+          "processing_start": 1792772840.7511454,
+          "result_visible": 1792772842.0013912,
+          "age_seconds": 10.246035099029541
+        },
+        {
+          "id": 8,
+          "prediction": "technology",
+          "ingress": 1792772831.9374888,
+          "processing_start": 1792772842.073328,
+          "result_visible": 1792772843.3976176,
+          "age_seconds": 11.460128784179688
+        },
+        {
+          "id": 9,
+          "prediction": "sport",
+          "ingress": 1792772832.0683098,
+          "processing_start": 1792772843.4610422,
+          "result_visible": 1792772844.6819465,
+          "age_seconds": 12.61363673210144
+        },
+        {
+          "id": 10,
+          "prediction": "technology",
+          "ingress": 1792772832.1965508,
+          "processing_start": 1792772844.7393286,
+          "result_visible": 1792772846.0013766,
+          "age_seconds": 13.804825782775879
+        },
+        {
+          "id": 11,
+          "prediction": "sport",
+          "ingress": 1792772832.380381,
+          "processing_start": 1792772846.068214,
+          "result_visible": 1792772847.350588,
+          "age_seconds": 14.97020697593689
+        }
+      ]
+    },
+    {
+      "case": "same-input-delay-removed",
+      "source": "file stream, maxFilesPerTrigger=1",
+      "events": 12,
+      "input_interval_seconds": 0.1,
+      "injected_per_record_delay_seconds": 0,
+      "offered_rate": 7.254427787368196,
+      "processed_by_input_end": 1,
+      "pending_at_input_end": 11,
+      "drain_seconds": 11.32447862625122,
+      "median_age_seconds": 5.843516945838928,
+      "max_age_seconds": 10.544301986694336,
+      "batches": [
+        {
+          "id": 1,
+          "count": 1,
+          "duration_seconds": 0.03037261962890625
+        },
+        {
+          "id": 2,
+          "count": 1,
+          "duration_seconds": 0.018405437469482422
+        },
+        {
+          "id": 3,
+          "count": 1,
+          "duration_seconds": 0.01765751838684082
+        },
+        {
+          "id": 4,
+          "count": 1,
+          "duration_seconds": 0.017487525939941406
+        },
+        {
+          "id": 5,
+          "count": 1,
+          "duration_seconds": 0.017720937728881836
+        },
+        {
+          "id": 6,
+          "count": 1,
+          "duration_seconds": 0.024680376052856445
+        },
+        {
+          "id": 7,
+          "count": 1,
+          "duration_seconds": 0.017400026321411133
+        },
+        {
+          "id": 8,
+          "count": 1,
+          "duration_seconds": 0.017291784286499023
+        },
+        {
+          "id": 9,
+          "count": 1,
+          "duration_seconds": 0.015746355056762695
+        },
+        {
+          "id": 10,
+          "count": 1,
+          "duration_seconds": 0.017204999923706055
+        },
+        {
+          "id": 11,
+          "count": 1,
+          "duration_seconds": 0.022828340530395508
+        },
+        {
+          "id": 12,
+          "count": 1,
+          "duration_seconds": 0.01727890968322754
+        }
+      ],
+      "events_observed": [
+        {
+          "id": 0,
+          "prediction": "technology",
+          "ingress": 1792772848.024278,
+          "processing_start": 1792772849.1139586,
+          "result_visible": 1792772849.1443267,
+          "age_seconds": 1.1200487613677979
+        },
+        {
+          "id": 1,
+          "prediction": "sport",
+          "ingress": 1792772848.1512084,
+          "processing_start": 1792772850.0814986,
+          "result_visible": 1792772850.0998988,
+          "age_seconds": 1.948690414428711
+        },
+        {
+          "id": 2,
+          "prediction": "technology",
+          "ingress": 1792772848.3100574,
+          "processing_start": 1792772851.0523582,
+          "result_visible": 1792772851.070011,
+          "age_seconds": 2.759953498840332
+        },
+        {
+          "id": 3,
+          "prediction": "sport",
+          "ingress": 1792772848.4574049,
+          "processing_start": 1792772852.1051009,
+          "result_visible": 1792772852.1225836,
+          "age_seconds": 3.6651787757873535
+        },
+        {
+          "id": 4,
+          "prediction": "technology",
+          "ingress": 1792772848.5586305,
+          "processing_start": 1792772853.0655956,
+          "result_visible": 1792772853.0833116,
+          "age_seconds": 4.524681091308594
+        },
+        {
+          "id": 5,
+          "prediction": "sport",
+          "ingress": 1792772848.7575314,
+          "processing_start": 1792772854.142973,
+          "result_visible": 1792772854.1676488,
+          "age_seconds": 5.4101173877716064
+        },
+        {
+          "id": 6,
+          "prediction": "technology",
+          "ingress": 1792772848.8857188,
+          "processing_start": 1792772855.1452396,
+          "result_visible": 1792772855.1626353,
+          "age_seconds": 6.27691650390625
+        },
+        {
+          "id": 7,
+          "prediction": "sport",
+          "ingress": 1792772849.0524216,
+          "processing_start": 1792772856.05527,
+          "result_visible": 1792772856.0725574,
+          "age_seconds": 7.020135879516602
+        },
+        {
+          "id": 8,
+          "prediction": "technology",
+          "ingress": 1792772849.1535757,
+          "processing_start": 1792772857.1174123,
+          "result_visible": 1792772857.1331522,
+          "age_seconds": 7.979576587677002
+        },
+        {
+          "id": 9,
+          "prediction": "sport",
+          "ingress": 1792772849.296122,
+          "processing_start": 1792772858.0559535,
+          "result_visible": 1792772858.0731537,
+          "age_seconds": 8.777031660079956
+        },
+        {
+          "id": 10,
+          "prediction": "technology",
+          "ingress": 1792772849.4291613,
+          "processing_start": 1792772859.0768127,
+          "result_visible": 1792772859.0996366,
+          "age_seconds": 9.670475244522095
+        },
+        {
+          "id": 11,
+          "prediction": "sport",
+          "ingress": 1792772849.5745869,
+          "processing_start": 1792772860.1016145,
+          "result_visible": 1792772860.1188889,
+          "age_seconds": 10.544301986694336
+        }
+      ]
+    }
+  ]
+}

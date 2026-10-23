@@ -1,4 +1,4 @@
-name: Prediction timestamp checks
+name: Structured Streaming experiment
 on: [push, pull_request]
 permissions:
   contents: read
@@ -10,4 +10,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - run: python3 -m unittest discover -s talk -p 'test_*.py' -v
+      - run: docker build -t talk-stream-experiment:ci experiment
+      - run: docker run --rm --cpus 2 --memory 3g -v "$PWD/experiment:/lab" talk-stream-experiment:ci
