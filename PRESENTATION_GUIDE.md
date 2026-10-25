@@ -4,23 +4,33 @@ Why Are Predictions Late? Diagnosing Streaming Inference on Kubernetes
 
 ## 0:00 — An available endpoint can serve stale predictions
 
-Use the corresponding assertion or result record, explain what changes, and ask which boundary the observation proves.
+The experiment isolates Spark processing from Kafka and HTTP serving. Its useful outcome is event age at callback output, not endpoint availability.
+
+Identify the measurement boundary before showing any latency figure.
 
 ## 4:00 — Record current ingress timestamps on replay
 
-Use the corresponding assertion or result record, explain what changes, and ask which boundary the observation proves.
+Each of twelve events receives a new ingress timestamp and stable fixture ID. Historical source time would measure a different kind of age.
+
+The warm-up event is excluded. Show event IDs and timestamps in experiment/results.json.
 
 ## 9:00 — Separate queue, compute and output visibility
 
-Use the corresponding assertion or result record, explain what changes, and ask which boundary the observation proves.
+Record ingress, batch processing start and result collection. Batch duration includes collecting records, classification and any labeled injected delay.
+
+The classifier runs in the driver callback, not as distributed executor-side inference.
 
 ## 15:00 — Remove one delay and look for the next limit
 
-Use the corresponding assertion or result record, explain what changes, and ask which boundary the observation proves.
+In one local run, removing the injected delay reduced median age from 8.40 to 5.84 seconds. Eleven events were still pending when input stopped.
+
+These are single-run fixture observations with slightly different measured offered rates, not a production benchmark.
 
 ## 21:00 — The source admission cap can dominate after compute improves
 
-Use the corresponding assertion or result record, explain what changes, and ask which boundary the observation proves.
+The source still accepts one file per one-second trigger. Faster classification cannot remove that admission limit; the runner drains and verifies all twelve events afterward.
+
+Distinguish pending work at input completion from lost records.
 
 ## 26:00 — Questions and buffer
 

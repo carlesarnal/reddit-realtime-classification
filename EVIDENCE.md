@@ -4,4 +4,4 @@ Actual Spark 3.5.3 Structured Streaming experiment passed with a fitted CountVec
 
 Single run, four training texts, file source, driver-side classifier in foreachBatch, local[2], two-CPU/3GB container. Injected delay is a labeled intervention, not measured model inference cost. Result visibility is collection into the callback output, not a Quarkus endpoint. Kafka, Kubernetes and production ML quality are outside this isolation experiment.
 
-See `experiment/results.json` and the runner assertions. Results are observed fixture behavior, not acceptance predictions.
+See `experiment/results.json` and the runner assertions. Results describe the fixture and versions recorded here.
